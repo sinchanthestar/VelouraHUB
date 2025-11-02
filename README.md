@@ -27,4 +27,4 @@ Menggunakan sistem event-based, delay presisi, dan pengaturan fleksibel — menj
 
 ```lua
 -- Paste ke executor favoritmu:
-loadstring(game:HttpGet("https://raw.githubusercontent.com/sinchanthestar/VelouraHUB/main/module/f/fishit.lua"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/sinchanthestar/VelouraHUB/refs/heads/main/main.lua"))()
