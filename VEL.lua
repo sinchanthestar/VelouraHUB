@@ -86,6 +86,7 @@ if not lib then
     return
 end
 Library = lib
+showDebugBanner("FishIt: library loaded")
 
 local Services = {
     Players = game:GetService("Players"),
@@ -561,29 +562,53 @@ local function applyBoatSpeed(speed)
     return false
 end
 
-local Window = Library:Window({
-    Title = "FishIt Hub",
-    Footer = "NineHub",
-    Color = Color3.fromRGB(255, 131, 74),
-    Version = 1
-})
+local Window
+local okWindow, windowOrErr = pcall(function()
+    return Library:Window({
+        Title = "FishIt Hub",
+        Footer = "NineHub",
+        Color = Color3.fromRGB(255, 131, 74),
+        Version = 1
+    })
+end)
+if not okWindow then
+    warn("Window create failed:", windowOrErr)
+    showDebugBanner("FishIt: window failed - " .. tostring(windowOrErr))
+    return
+end
+Window = windowOrErr
+if not Window then
+    showDebugBanner("FishIt: window nil")
+    return
+end
+showDebugBanner("FishIt: window created")
 
-local Tabs = {
-    Main = Window:AddTab({ Name = "Main", Icon = "fish" }),
-    Blatant = Window:AddTab({ Name = "Blatant Fishing", Icon = "crosshair" }),
-    Oxygen = Window:AddTab({ Name = "Oxygen", Icon = "water" }),
-    Enchant = Window:AddTab({ Name = "Double Enchant", Icon = "star" }),
-    Trade = Window:AddTab({ Name = "Trade", Icon = "cart" }),
-    TeleportPos = Window:AddTab({ Name = "Teleport & Position", Icon = "gps" }),
-    Selling = Window:AddTab({ Name = "Selling System", Icon = "bag" }),
-    Safety = Window:AddTab({ Name = "Safety & Misc", Icon = "alert" }),
-    Shop = Window:AddTab({ Name = "Shop", Icon = "shop" }),
-    Teleport = Window:AddTab({ Name = "Teleport", Icon = "mappinned" }),
-    Boat = Window:AddTab({ Name = "Boat", Icon = "gamepad" }),
-    Environment = Window:AddTab({ Name = "Environment", Icon = "strom" }),
-    Webhook = Window:AddTab({ Name = "Webhook", Icon = "discord" }),
-    Utility = Window:AddTab({ Name = "Utility", Icon = "settings" })
-}
+local Tabs
+local okTabs, tabsOrErr = pcall(function()
+    return {
+        Main = Window:AddTab({ Name = "Main", Icon = "fish" }),
+        Blatant = Window:AddTab({ Name = "Blatant Fishing", Icon = "crosshair" }),
+        Oxygen = Window:AddTab({ Name = "Oxygen", Icon = "water" }),
+        Enchant = Window:AddTab({ Name = "Double Enchant", Icon = "star" }),
+        Trade = Window:AddTab({ Name = "Trade", Icon = "cart" }),
+        TeleportPos = Window:AddTab({ Name = "Teleport & Position", Icon = "gps" }),
+        Selling = Window:AddTab({ Name = "Selling System", Icon = "bag" }),
+        Safety = Window:AddTab({ Name = "Safety & Misc", Icon = "alert" }),
+        Shop = Window:AddTab({ Name = "Shop", Icon = "shop" }),
+        Teleport = Window:AddTab({ Name = "Teleport", Icon = "mappinned" }),
+        Boat = Window:AddTab({ Name = "Boat", Icon = "gamepad" }),
+        Environment = Window:AddTab({ Name = "Environment", Icon = "strom" }),
+        Webhook = Window:AddTab({ Name = "Webhook", Icon = "discord" }),
+        Utility = Window:AddTab({ Name = "Utility", Icon = "settings" })
+    }
+end)
+if not okTabs then
+    warn("Tab create failed:", tabsOrErr)
+    showDebugBanner("FishIt: tabs failed - " .. tostring(tabsOrErr))
+    return
+end
+Tabs = tabsOrErr
+showDebugBanner("FishIt: tabs created")
 
 -- MAIN TAB
 local MainSection = Tabs.Main:AddSection("Auto Fishing")
