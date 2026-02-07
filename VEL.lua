@@ -600,11 +600,13 @@ do
         FontWeight = Enum.FontWeight.SemiBold,
     })
 
-    tabSupport:Paragraph({
-        Title = "Fishing Support",
-        Content = "Fitur pendukung: platform air, equip rod, stealth, notif, trade.",
-        Icon = "info",
-    })
+    if tabSupport.Paragraph then
+        tabSupport:Paragraph({
+            Title = "Fishing Support",
+            Content = "Fitur pendukung: platform air, equip rod, stealth, notif, trade.",
+            Icon = "info",
+        })
+    end
 
     Reg("wlkonwtr", tabSupport:Toggle({
         Title = "Walk On Water",
@@ -672,7 +674,9 @@ do
         end
     }))
 
-    tabSupport:Divider()
+    if tabSupport.Divider then
+        tabSupport:Divider()
+    end
 
     Reg("sth_height", tabSupport:Input({
         Title = "Stealth Height",
