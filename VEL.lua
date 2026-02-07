@@ -38,26 +38,18 @@ local HttpService = game:GetService("HttpService")
 local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = game.Players.LocalPlayer
 local RepStorage = game:GetService("ReplicatedStorage") 
+local ItemUtility = require(RepStorage:WaitForChild("Shared"):WaitForChild("ItemUtility", 10))
+local TierUtility = require(RepStorage:WaitForChild("Shared"):WaitForChild("TierUtility", 10))
 
-local function SafeWaitForChild(parent, childName, timeout)
-    if not parent then return nil end
-    local ok, child = pcall(function()
-        return parent:WaitForChild(childName, timeout)
-    end)
-    if ok then return child end
-    return nil
-end
+--[[ SETUP REMOTE SESUAI GAMBAR ]]
 
-local function SafeRequire(moduleScript)
-    if not moduleScript then return nil end
-    local ok, result = pcall(require, moduleScript)
-    if ok then return result end
-    return nil
-end
 
-local SharedFolder = RepStorage:FindFirstChild("Shared") or SafeWaitForChild(RepStorage, "Shared", 10)
-local ItemUtility = SafeRequire(SharedFolder and SafeWaitForChild(SharedFolder, "ItemUtility", 10))
-local TierUtility = SafeRequire(SharedFolder and SafeWaitForChild(SharedFolder, "TierUtility", 10))
+local RF_Charge = NetPath["RF/ChargeFishingRod"]
+local RF_StartGame = NetPath["RF/RequestFishingMinigameStarted"]
+local RF_Complete = NetPath["RF/CatchFishCompleted"]
+
+
+
 
 local pos_saved = nil
 local look_saved = nil
@@ -271,7 +263,7 @@ table.sort(AreaNames)
 
 -- ======================================= Fishing Tab ========================
 do
-    local FishingTab = Window:Tab({
+    local FishingTab = Window:Section({
         Title = "Fishing",
         Icon = "fish",
         Locked = false,
@@ -292,13 +284,9 @@ do
     local blatantV1State = nil
     local blatantV2State = nil
     
-    local toggleLegit = nil
-    local toggleInstant = nil
-    local BlatantV1Toggle = nil
-    local BlatantV2Toggle = nil
-    
-    local minigameDelay = nil
-    local cycleDelay = nil
+    -- Default aman (biar toggle tidak error kalau user belum input)
+    local minigameDelay = 1
+    local cycleDelay = 1.97
     
     local walkOnWaterConnection = nil
     local isWalkOnWater = false
@@ -435,7 +423,7 @@ do
     local function instantOk()
         RF_ChargeFishingRod:InvokeServer(1, 0.999)
         RF_RequestFishingMinigameStarted:InvokeServer(1, 0.999)
-        task.wait(minigameDelay)
+        task.wait(tonumber(minigameDelay) or 1)
         RE_FishingCompleted:FireServer()
         task.wait(0.3)
         RF_CancelFishingInputs:InvokeServer()
@@ -451,12 +439,13 @@ do
         task.spawn(function()
             task.wait(0.016)
             RF_RequestFishingMinigameStarted:InvokeServer(1, 0.99)
-            task.wait(minigameDelay)
+            task.wait(tonumber(minigameDelay) or 0.97)
             RE_FishingCompleted:FireServer()
         end)
     end
     
-    local function blatantFishv2()
+    -- Legacy (tidak dipakai oleh UI BlatantV2 yang baru, tapi disimpan agar fitur tidak hilang)
+    local function blatantFishv2_Legacy()
         task.spawn(function()
             pcall(function() RF_CancelFishingInputs:InvokeServer() end)
         end)
@@ -468,7 +457,7 @@ do
             pcall(function() RF_RequestFishingMinigameStarted:InvokeServer(1, 0.999) end)
         end)
         task.spawn(function()
-            task.wait(minigameDelay)
+            task.wait(tonumber(minigameDelay) or 0.5)
             pcall(function() RE_FishingCompleted:FireServer() end)
         end)
     end
@@ -495,43 +484,30 @@ do
     end)
     
     -- [[ 2. REMOTE KILLER: BLOKIR KOMUNIKASI ]]
-    -- Catatan: Beberapa executor tidak support getrawmetatable/newcclosure.
-    pcall(function()
-        if type(getrawmetatable) ~= "function" then return end
-        if type(setreadonly) ~= "function" then return end
-        if type(newcclosure) ~= "function" then return end
-        if type(getnamecallmethod) ~= "function" then return end
-        if type(checkcaller) ~= "function" then return end
-
-        local mt = getrawmetatable(game)
-        if not mt then return end
-        local old_namecall = mt.__namecall
-        if type(old_namecall) ~= "function" then return end
-
-        setreadonly(mt, false)
-        mt.__namecall = newcclosure(function(self, ...)
-            local method = getnamecallmethod()
-            if _G.BloxFish_BlatantActive and not checkcaller() then
-                -- Cegah game mengirim request mancing atau request update state
-                if method == "InvokeServer" and (self.Name == "RequestFishingMinigameStarted" or self.Name == "ChargeFishingRod" or self.Name == "UpdateAutoFishingState") then
-                    return nil
-                end
-                if method == "FireServer" and self.Name == "FishingCompleted" then
-                    return nil
-                end
+    local mt = getrawmetatable(game)
+    local old_namecall = mt.__namecall
+    setreadonly(mt, false)
+    mt.__namecall = newcclosure(function(self, ...)
+        local method = getnamecallmethod()
+        if _G.BloxFish_BlatantActive and not checkcaller() then
+            -- Cegah game mengirim request mancing atau request update state
+            if method == "InvokeServer" and (self.Name == "RequestFishingMinigameStarted" or self.Name == "ChargeFishingRod" or self.Name == "UpdateAutoFishingState") then
+                return nil 
             end
-            return old_namecall(self, ...)
-        end)
-        setreadonly(mt, true)
+            if method == "FireServer" and self.Name == "FishingCompleted" then
+                return nil
+            end
+        end
+        return old_namecall(self, ...)
     end)
+    setreadonly(mt, true)
     
     -- ===================================================================
     -- LOGIKA BARU UNTUK AUTO FISH LEGIT
     -- ===================================================================
-
-    local ControllersFolder = RepStorage:FindFirstChild("Controllers") or SafeWaitForChild(RepStorage, "Controllers", 10)
-    local FishingController = SafeRequire(ControllersFolder and ControllersFolder:FindFirstChild("FishingController"))
-    local AutoFishingController = SafeRequire(ControllersFolder and ControllersFolder:FindFirstChild("AutoFishingController"))
+    
+    local FishingController = require(RepStorage:WaitForChild("Controllers").FishingController)
+    local AutoFishingController = require(RepStorage:WaitForChild("Controllers").AutoFishingController)
     
     local AutoFishState = {
         IsActive = false,
@@ -548,39 +524,33 @@ do
         end
     end
     
-    if FishingController and AutoFishingController then
-        -- Hook FishingRodStarted (Minigame Aktif)
-        local originalRodStarted = FishingController.FishingRodStarted
-        FishingController.FishingRodStarted = function(self, arg1, arg2)
-            if originalRodStarted then
-                originalRodStarted(self, arg1, arg2)
+    -- Hook FishingRodStarted (Minigame Aktif)
+    local originalRodStarted = FishingController.FishingRodStarted
+    FishingController.FishingRodStarted = function(self, arg1, arg2)
+        originalRodStarted(self, arg1, arg2)
+    
+        if AutoFishState.IsActive and not AutoFishState.MinigameActive then
+            AutoFishState.MinigameActive = true
+    
+            if legitClickThread then
+                task.cancel(legitClickThread)
             end
-
-            if AutoFishState.IsActive and not AutoFishState.MinigameActive then
-                AutoFishState.MinigameActive = true
-
-                if legitClickThread then
-                    task.cancel(legitClickThread)
+    
+            legitClickThread = task.spawn(function()
+                while AutoFishState.IsActive and AutoFishState.MinigameActive do
+                    performClick()
                 end
-
-                legitClickThread = task.spawn(function()
-                    while AutoFishState.IsActive and AutoFishState.MinigameActive do
-                        performClick()
-                    end
-                end)
-            end
+            end)
         end
-
-        -- Hook FishingStopped
-        local originalFishingStopped = FishingController.FishingStopped
-        FishingController.FishingStopped = function(self, arg1)
-            if originalFishingStopped then
-                originalFishingStopped(self, arg1)
-            end
-
-            if AutoFishState.MinigameActive then
-                AutoFishState.MinigameActive = false
-            end
+    end
+    
+    -- Hook FishingStopped
+    local originalFishingStopped = FishingController.FishingStopped
+    FishingController.FishingStopped = function(self, arg1)
+        originalFishingStopped(self, arg1)
+    
+        if AutoFishState.MinigameActive then
+            AutoFishState.MinigameActive = false
         end
     end
     
@@ -621,18 +591,26 @@ do
         end
     end
     
-    -- ===== FISHING SUPPORT SECTION =====
-    local fishSupport = FishingTab:Section({
-        Title = "Fishing Support",
-        TextSize = 18,
+    -- =============================================================
+    -- UI LAYOUT (RAPIH) - TIDAK MENGHILANGKAN FITUR
+    -- =============================================================
+    local tabSupport = FishingTab:Tab({
+        Title = "Support",
+        TextSize = 20,
         FontWeight = Enum.FontWeight.SemiBold,
     })
-    
-    local walkonwater = Reg("wlkonwtr", fishSupport:Toggle({
+
+    tabSupport:Paragraph({
+        Title = "Fishing Support",
+        Content = "Fitur pendukung: platform air, equip rod, stealth, notif, trade.",
+        Icon = "info",
+    })
+
+    Reg("wlkonwtr", tabSupport:Toggle({
         Title = "Walk On Water",
         Value = false,
-        Callback = function(c)
-            if c then
+        Callback = function(state)
+            if state then
                 isWalkOnWater = true
                 WoW()
             else
@@ -642,97 +620,109 @@ do
             end
         end
     }))
-    
-    local autoERod = Reg("autoerod", fishSupport:Toggle({
+
+    Reg("autoerod", tabSupport:Toggle({
         Title = "Auto Equip Rod",
         Value = false,
-        Callback = function(b)
-            if b then
-                if autoERodConn then
-                    task.cancel(autoERodConn)
-                    autoERodConn = nil
-                end
+        Callback = function(enabled)
+            if enabled then
+                if autoERodConn then task.cancel(autoERodConn) autoERodConn = nil end
                 autoERodConn = task.spawn(function()
-                    while b do
-                        pcall(function() RE_EquipToolFromHotbar:FireServer(1) end) task.wait(1)
+                    while enabled do
+                        pcall(function() RE_EquipToolFromHotbar:FireServer(1) end)
+                        task.wait(1)
                     end
                 end)
             else
-                task.cancel(autoERodConn) autoERodConn = nil
+                if autoERodConn then task.cancel(autoERodConn) end
+                autoERodConn = nil
             end
         end
     }))
-    
-    local disAnim = Reg("disAnim", fishSupport:Toggle({
+
+    Reg("disAnim", tabSupport:Toggle({
         Title = "Disable Animation",
         Value = false,
-        Callback = function(b)
-            isNoAnimationActive = b
-            if b then
+        Callback = function(enabled)
+            isNoAnimationActive = enabled
+            if enabled then
                 DisableAnimations()
             else
                 EnableAnimations()
             end
         end
     }))
-    
-    local disNotif = Reg("disNotif", fishSupport:Toggle({
+
+    Reg("disNotif", tabSupport:Toggle({
         Title = "Disable Fish Notif",
         Value = false,
-        Callback = function(s)
-            s = not s
-            pcall(function() game:GetService("Players").LocalPlayer.PlayerGui["Small Notification"].Display.Visible = s end)
+        Callback = function(disable)
+            local shouldShow = not disable
+            pcall(function()
+                game:GetService("Players").LocalPlayer.PlayerGui["Small Notification"].Display.Visible = shouldShow
+            end)
         end
     }))
-    
-    local AutoAccept = Reg("autoacc", fishSupport:Toggle({
+
+    Reg("autoacc", tabSupport:Toggle({
         Title = "Auto Accept Trade",
         Value = false,
-        Callback = function(c)
-            _G.BloxFish_AutoAcceptTradeEnabled = c
+        Callback = function(enabled)
+            _G.BloxFish_AutoAcceptTradeEnabled = enabled
         end
     }))
 
-    local sth_height = Reg("sth_height", fishSupport:Input({ -- ✅ DIPERBAIKI
+    tabSupport:Divider()
+
+    Reg("sth_height", tabSupport:Input({
         Title = "Stealth Height",
-        Value = tostring(stealthHight or 1), -- ✅ DIPERBAIKI
+        Value = tostring(stealthHight or 110),
         Type = "Input",
         Placeholder = "example : 110",
-        Callback = function(s)
-            stealthHight = tonumber(s)
+        Callback = function(text)
+            local n = tonumber(text)
+            if n then stealthHight = n end
         end
     }))
 
-    local stealth = Reg("stealth", fishSupport:Toggle({
+    Reg("stealth", tabSupport:Toggle({
         Title = "Stealth Mode",
         Value = false,
         Callback = function(state)
             local hrp = GetHRP()
+            if not hrp then return end
+
             pos_saved = hrp.Position
             look_saved = hrp.CFrame.LookVector
-            
+
             stealthMode = state
             if state then
                 TeleportToLookAt()
             else
-                hrp.Anchored = state
-                wait(0.1)
+                hrp.Anchored = false
+                task.wait(0.1)
                 TeleportToLookAt()
             end
         end
     }))
 
-    fishSupport:Divider()
-    
-    -- ===== AUTO FISHING SECTION =====
-    local autoFish = FishingTab:Section({
-        Title = "Auto Fishing (Legit)",
-        TextSize = 18,
+    -- =========================
+    -- AUTO (LEGIT)
+    -- =========================
+    local tabAuto = FishingTab:Tab({
+        Title = "Auto (Legit)",
+        TextSize = 20,
         FontWeight = Enum.FontWeight.SemiBold,
     })
-    
-    local slidlegit = Reg("klikd", autoFish:Slider({ -- ✅ DIPERBAIKI
-        Title = "Legit Click Speed (Delay)",
+
+    local secLegit = tabAuto:Section({
+        Title = "Auto Fish (Legit)",
+        TextSize = 20,
+        FontWeight = Enum.FontWeight.SemiBold,
+    })
+
+    Reg("klikd", secLegit:Slider({
+        Title = "Click Speed (Delay)",
         Step = 0.01,
         Value = { Min = 0.01, Max = 0.5, Default = SPEED_LEGIT },
         Callback = function(value)
@@ -742,48 +732,54 @@ do
             end
         end
     }))
-    
-    local toggleLegit = Reg("legit", autoFish:Toggle({ -- ✅ DIPERBAIKI
-        Title = "Auto Fish (Legit)",
+
+    Reg("legit", secLegit:Toggle({
+        Title = "Enable Auto Fish (Legit)",
         Value = false,
         Callback = function(state)
             ToggleAutoClick(state)
         end
     }))
-    
-    autoFish:Divider()
-    
-    -- ===== INSTANT FISHING SECTION =====
-    local InstantFish = FishingTab:Section({
-        Title = "Instant Fishing",
-        TextSize = 18,
+
+    -- =========================
+    -- INSTANT
+    -- =========================
+    local tabInstant = FishingTab:Tab({
+        Title = "Instant",
+        TextSize = 20,
         FontWeight = Enum.FontWeight.SemiBold,
     })
-    
-    -- ⚠️ FIX: Gunakan `:Input()` bukan `()`
-    local InstantDelay = Reg("instdelay", InstantFish:Input({ -- ✅ DIPERBAIKI
+
+    local secInstant = tabInstant:Section({
+        Title = "Instant Fishing",
+        TextSize = 20,
+        FontWeight = Enum.FontWeight.SemiBold,
+    })
+
+    Reg("instdelay", secInstant:Input({
         Title = "Complete Delay",
-        Value = tostring(minigameDelay or 1), -- ✅ DIPERBAIKI
+        Value = tostring(minigameDelay or 1),
         Type = "Input",
         Placeholder = "example : 1",
         Callback = function(s)
-            minigameDelay = tonumber(s)
+            minigameDelay = tonumber(s) or minigameDelay
         end
     }))
-    
-    local toggleInstant = Reg("toginst", InstantFish:Toggle({ -- ✅ DIPERBAIKI
-        Title = "Instant Fish",
+
+    Reg("toginst", secInstant:Toggle({
+        Title = "Enable Instant Fish",
         Value = false,
         Callback = function(state)
             InstantState = state
             _G.BloxFish_BlatantActive = state
             pcall(function() RF_UpdateAutoFishingState:InvokeServer(state) end)
-            
+
             if state then
+                if instantLoopThread then task.cancel(instantLoopThread) instantLoopThread = nil end
                 instantLoopThread = task.spawn(function()
                     while InstantState do
                         instantOk()
-                        task.wait(0.1) 
+                        task.wait(0.1)
                     end
                 end)
             else
@@ -791,49 +787,56 @@ do
             end
         end
     }))
-    
-    InstantFish:Divider()
-    
-    -- ===== BLATANT V1 FISHING SECTION =====
-    local BlatantV1 = FishingTab:Section({
-        Title = "Blatant V1 Fishing",
-        TextSize = 18,
+
+    -- =========================
+    -- BLATANT
+    -- =========================
+    local tabBlatant = FishingTab:Tab({
+        Title = "Blatant",
+        TextSize = 20,
         FontWeight = Enum.FontWeight.SemiBold,
     })
-    
-    local BlatantV1Cast = Reg("blatV1cast", BlatantV1:Input({ -- ✅ DIPERBAIKI
+
+    local secV1 = tabBlatant:Section({
+        Title = "Blatant V1",
+        TextSize = 20,
+        FontWeight = Enum.FontWeight.SemiBold,
+    })
+
+    Reg("blatV1cast", secV1:Input({
         Title = "Cast Delay",
-        Value = "1.97",
+        Value = tostring(cycleDelay or 1.97),
         Type = "Input",
         Placeholder = "example : 1.97",
         Callback = function(s)
-            cycleDelay = tonumber(s)
+            cycleDelay = tonumber(s) or cycleDelay
         end
     }))
-    
-    local BlatantV1Delay = Reg("blatV1delay", BlatantV1:Input({ -- ✅ DIPERBAIKI
+
+    Reg("blatV1delay", secV1:Input({
         Title = "Complete Delay",
-        Value = "0.97",
+        Value = tostring(minigameDelay or 0.97),
         Type = "Input",
         Placeholder = "example : 0.97",
         Callback = function(s)
-            minigameDelay = tonumber(s)
+            minigameDelay = tonumber(s) or minigameDelay
         end
     }))
-    
-    local BlatantV1Toggle = Reg("togblatv1", BlatantV1:Toggle({ -- ✅ DIPERBAIKI
-        Title = "BlatantV1 Fish",
+
+    Reg("togblatv1", secV1:Toggle({
+        Title = "Enable Blatant V1 Fish",
         Value = false,
         Callback = function(state)
             blatantV1State = state
             _G.BloxFish_BlatantActive = state
             pcall(function() RF_UpdateAutoFishingState:InvokeServer(state) end)
-            
+
             if state then
+                if blatantFishv1LoopThread then task.cancel(blatantFishv1LoopThread) blatantFishv1LoopThread = nil end
                 blatantFishv1LoopThread = task.spawn(function()
                     while blatantV1State do
                         blatantFishv1()
-                        task.wait(cycleDelay)
+                        task.wait(tonumber(cycleDelay) or 1.97)
                     end
                 end)
             else
@@ -841,87 +844,70 @@ do
             end
         end
     }))
-   
-    BlatantV1:Divider()
-    
-    -- ===== BLATANT V2 FISHING SECTION =====
-    local BlatantV2 = FishingTab:Section({
-        Title = "Blatant V2 Fishing",
-        TextSize = 18,
+
+    --[[ LOGIKA UTAMA - BLATANT V2 ]]
+    local function blatantFishv2()
+        pcall(function()
+            RF_Charge:InvokeServer(1)
+        end)
+
+        task.wait(tonumber(cycleDelay) or 3.5)
+
+        pcall(function()
+            RF_StartGame:InvokeServer()
+        end)
+
+        task.wait(tonumber(minigameDelay) or 0.5)
+
+        pcall(function()
+            RF_Complete:InvokeServer()
+        end)
+    end
+
+    local secV2 = tabBlatant:Section({
+        Title = "Blatant V2",
+        TextSize = 20,
         FontWeight = Enum.FontWeight.SemiBold,
     })
-    
-    -- Definisi remote untuk Blatant V2
-    local RF_Charge = GetRemote("RF/ChargeFishingRod")
-    local RF_StartGame = GetRemote("RF/RequestFishingMinigameStarted")
-    local RF_Complete = GetRemote("RF/CatchFishCompleted")
-    
-    local function blatantFishv2()
-        -- 1. Charge Fishing Rod (Melempar kail)
-        if RF_Charge then
-            pcall(function() 
-                RF_Charge:InvokeServer(1) 
-            end)
-        end
-        
-        -- Tunggu waktu umpan dimakan (Bait Delay dari UI)
-        task.wait(cycleDelay) 
 
-        -- 2. Request Fishing Minigame Started (Mulai Minigame)
-        if RF_StartGame then
-            pcall(function() 
-                RF_StartGame:InvokeServer() 
-            end)
-        end
-
-        -- Tunggu durasi minigame pura-pura (Complete Delay dari UI)
-        task.wait(minigameDelay)
-
-        -- 3. Catch Fish Completed (Selesaikan Minigame/Dapat Ikan)
-        if RF_Complete then
-            pcall(function() 
-                RF_Complete:InvokeServer() 
-            end)
-        end
-    end
-    
-    local BlatantV2Bait = Reg("blatV2bait", BlatantV2:Input({
+    Reg("blatV2bait", secV2:Input({
         Title = "Bait Delay (Wait for Bite)",
-        Value = "3.5",
+        Value = tostring(cycleDelay or 3.5),
         Type = "Input",
         Placeholder = "example : 3.5",
         Callback = function(s)
-            cycleDelay = tonumber(s) or 3.5
+            cycleDelay = tonumber(s) or cycleDelay
         end
     }))
 
-    local BlatantV2Delay = Reg("blatV2delay", BlatantV2:Input({
+    Reg("blatV2delay", secV2:Input({
         Title = "Minigame Delay (Reeling)",
-        Value = "0.5",
+        Value = tostring(minigameDelay or 0.5),
         Type = "Input",
         Placeholder = "example : 0.5",
         Callback = function(s)
-            minigameDelay = tonumber(s) or 0.5
+            minigameDelay = tonumber(s) or minigameDelay
         end
     }))
 
-    local BlatantV2Toggle = Reg("togblatv2", BlatantV2:Toggle({
-        Title = "BlatantV2 Fish",
+    Reg("togblatv2", secV2:Toggle({
+        Title = "Enable Blatant V2 Fish",
         Value = false,
         Callback = function(state)
             blatantV2State = state
-            
+
             if state then
+                if blatantFishv2LoopThread then task.cancel(blatantFishv2LoopThread) blatantFishv2LoopThread = nil end
                 blatantFishv2LoopThread = task.spawn(function()
                     while blatantV2State do
                         blatantFishv2()
-                        task.wait(0.5)
+                        task.wait(0.2)
                     end
                 end)
             else
-                if blatantFishv2LoopThread then 
-                    task.cancel(blatantFishv2LoopThread) 
-                    blatantFishv2LoopThread = nil 
+                if blatantFishv2LoopThread then
+                    task.cancel(blatantFishv2LoopThread)
+                    blatantFishv2LoopThread = nil
                 end
             end
         end
@@ -970,13 +956,13 @@ do
     end
         
     local allItemNames = getAutoFavoriteItemOptions()
+        
+        -- FUNGSI HELPER: Mendapatkan semua item yang memenuhi kriteria (DIFORWARD KE FAVORITE)
+        -- GANTI FUNGSI LAMA 'GetItemsToFavorite' DENGAN YANG INI:
     
-    BlatantV2:Divider()
-    
-    -- ===== AUTO FAVORITE / UNFAVORITE SECTION =====
-    local favsec = FishingTab:Section({ 
-        Title = "Auto Favorite / Unfavorite", 
-        TextSize = 18,
+    local favsec = FishingTab:Tab({
+        Title = "Favorite",
+        TextSize = 20,
         FontWeight = Enum.FontWeight.SemiBold,
     })
     
@@ -1302,14 +1288,12 @@ do
         end)
     end
     
-    favsec:Divider()
-    
+       -- =================================================================
+    -- 💰 UNIFIED AUTO SELL SYSTEM (BY DELAY / BY COUNT)
     -- =================================================================
-    -- 💰 AUTO SELL SYSTEM (BY DELAY / BY COUNT)
-    -- =================================================================
-    local sellall = FishingTab:Section({ 
-        Title = "Auto Sell Fish", 
-        TextSize = 18,
+    local sellall = FishingTab:Tab({
+        Title = "Sell",
+        TextSize = 20,
         FontWeight = Enum.FontWeight.SemiBold,
     })
     
@@ -1432,7 +1416,7 @@ end
 
 -- ==================================== Player Tab ===========================
 do
-    local PlayerTab = Window:Tab({
+    local player = Window:Tab({
         Title = "Player",
         Icon = "user",
         Locked = false,
@@ -1446,11 +1430,10 @@ do
     local currentSpeed = DEFAULT_SPEED
     local currentJump = DEFAULT_JUMP
 
-    -- ===== MOVEMENT SECTION =====
-    local movement = PlayerTab:Section({
+    -- MOVEMENT
+    local movement = player:Section({
         Title = "Movement",
-        TextSize = 18,
-        FontWeight = Enum.FontWeight.SemiBold,
+        TextSize = 20,
     })
 
     -- 1. SLIDER WALKSPEED
@@ -1532,13 +1515,10 @@ do
         end
     }))
 
-    movement:Divider()
-    
-    -- ===== ABILITIES SECTION =====
-    local ability = PlayerTab:Section({
+    -- ABILITIES
+    local ability = player:Section({
         Title = "Abilities",
-        TextSize = 18,
-        FontWeight = Enum.FontWeight.SemiBold,
+        TextSize = 20,
     })
 
     -- 1. TOGGLE INFINITE JUMP
@@ -1656,13 +1636,10 @@ do
         end
     }))
 
-    ability:Divider()
-    
-    -- ===== OTHER SECTION =====
-    local other = PlayerTab:Section({
-        Title = "Player ESP & Visual",
-        TextSize = 18,
-        FontWeight = Enum.FontWeight.SemiBold,
+    -- OTHER
+    local other = player:Section({
+        Title = "Other",
+        TextSize = 20,
     })
 
     local isHideActive = false
@@ -1915,17 +1892,16 @@ do
 end
 
 
--- ==================================== Automation Tab ===========================
-do
-    local AutomationTab = Window:Tab({
-        Title = "Automation",
-        Icon = "zap",
-        Locked = false,
-    })
+-- ==================================== automation Tab ===========================
+local automatic = Window:Tab({
+    Title = "Automatic",
+    Icon = "loader",
+    Locked = false,
+})
 
-    local WeatherList = { "Storm", "Cloudy", "Snow", "Wind", "Radiant", "Shark Hunt" }
-    local AutoWeatherState = false
-    local AutoWeatherThread = nil
+local WeatherList = { "Storm", "Cloudy", "Snow", "Wind", "Radiant", "Shark Hunt" }
+local AutoWeatherState = false
+local AutoWeatherThread = nil
 -- UBAH INI MENJADI TABEL UNTUK MENYIMPAN MULTI-SELEKSI
 local SelectedWeatherTypes = { WeatherList[1] }
 local RF_PurchaseWeatherEvent = GetRemote("RF/PurchaseWeatherEvent", 1)
@@ -1992,12 +1968,8 @@ local function RunAutoBuyWeatherLoop(weatherTypes)
     end)
 end
 
--- ===== AUTO BUY WEATHER SECTION =====
-local weathershop = AutomationTab:Section({ 
-    Title = "Auto Buy Weather", 
-    TextSize = 18,
-    FontWeight = Enum.FontWeight.SemiBold,
-})
+-- 3. UI UNTUK AUTO BUY WEATHER
+local weathershop = automatic:Section({ Title = "Auto Buy Weather", TextSize = 20, })
 
 local WeatherDropdown = Reg("weahterd", weathershop:Dropdown({
     Title = "Select Weather Type",
@@ -2039,13 +2011,12 @@ local ToggleAutoBuy = Reg("shopweath",weathershop:Toggle({
         end
     end
 }))
-end
 
--- ==================================== Teleport Tab ===========================
+-- ==================================== automation Tab ===========================
 do
-    local TeleportTab = Window:Tab({
+    local teleport = Window:Tab({
         Title = "Teleport",
-        Icon = "navigation",
+        Icon = "map-pin",
         Locked = false,
     })
 
@@ -2076,12 +2047,11 @@ do
 
 
     -- =================================================================
-    -- TELEPORT TO PLAYER SECTION
+    -- A. TELEPORT KE PEMAIN (Button)
     -- =================================================================
-    local teleplay = TeleportTab:Section({
+    local teleplay = teleport:Section({
         Title = "Teleport to Player",
-        TextSize = 18,
-        FontWeight = Enum.FontWeight.SemiBold,
+        TextSize = 20,
     })
 
     local PlayerDropdown = teleplay:Dropdown({
@@ -2133,15 +2103,13 @@ do
         end
     })
 
-    teleplay:Divider()
+    -- =================================================================
+    -- B. TELEPORT KE AREA (Button)
+    -- =================================================================
     
-    -- =================================================================
-    -- TELEPORT TO AREA SECTION
-    -- =================================================================
-    local telearea = TeleportTab:Section({
+    local telearea = teleport:Section({
         Title = "Teleport to Fishing Area",
-        TextSize = 18,
-        FontWeight = Enum.FontWeight.SemiBold,
+        TextSize = 20,
     })
 
     local AreaDropdown = telearea:Dropdown({
@@ -2173,7 +2141,7 @@ end
 
 -- ==================================== Webhook Tab ===========================
 do
-    local WebhookTab = Window:Tab({
+    local webhook = Window:Tab({
         Title = "Webhook",
         Icon = "send",
         Locked = false,
@@ -2471,14 +2439,7 @@ do
     -- UI IMPLEMENTATION (LANJUTAN)
     -- =================================================================
 
-    -- ===== WEBHOOK CONFIGURATION =====
-    local WebhookConfig = WebhookTab:Section({
-        Title = "Webhook Configuration",
-        TextSize = 18,
-        FontWeight = Enum.FontWeight.SemiBold,
-    })
-    
-   local inputweb = Reg("inptweb",WebhookConfig:Input({
+   local inputweb = Reg("inptweb",webhook:Input({
         Title = "Discord Webhook URL",
         Desc = "URL tempat notifikasi akan dikirim.",
         Value = "",
@@ -2490,9 +2451,9 @@ do
         end
     }))
 
-    WebhookConfig:Divider()
+    webhook:Divider()
     
-   local ToggleNotif = Reg("tweb",WebhookConfig:Toggle({
+   local ToggleNotif = Reg("tweb",webhook:Toggle({
         Title = "Enable Fish Notifications",
         Desc = "Aktifkan/nonaktifkan pengiriman notifikasi ikan.",
         Value = false,
@@ -2577,10 +2538,10 @@ do
     })
 end
 
--- ==================================== Settings Tab ===========================
+-- ==================================== Setting Tab ===========================
 do
-    local SettingsTab = Window:Tab({
-        Title = "Settings",
+    local SettingsTab = Window:Section({
+        Title = "Configuration",
         Icon = "settings",
         Locked = false,
     })
@@ -2673,10 +2634,9 @@ do
     end
     
     -- Tambahkan di bagian atas blok 'utility'
-    local ControllersFolder2 = game:GetService("ReplicatedStorage"):FindFirstChild("Controllers") or SafeWaitForChild(game:GetService("ReplicatedStorage"), "Controllers", 10)
-    local VFXControllerModule = SafeRequire(ControllersFolder2 and ControllersFolder2:FindFirstChild("VFXController"))
-    local originalVFXHandle = VFXControllerModule and VFXControllerModule.Handle or nil
-    local originalPlayVFX = (VFXControllerModule and VFXControllerModule.PlayVFX and VFXControllerModule.PlayVFX.Fire) or nil
+    local VFXControllerModule = require(game:GetService("ReplicatedStorage"):WaitForChild("Controllers").VFXController)
+    local originalVFXHandle = VFXControllerModule.Handle
+    local originalPlayVFX = VFXControllerModule.PlayVFX.Fire -- Asumsi PlayVFX adalah Signal/Event yang memiliki Fire
     
     -- Variabel global untuk status VFX
     local isVFXDisabled = false
@@ -2703,11 +2663,14 @@ do
         end
     end)
     
-    -- ===== GAME MODIFICATIONS SECTION =====
-    local miscS = SettingsTab:Section({
-        Title = "Game Modifications",
-        TextSize = 18,
-        FontWeight = Enum.FontWeight.SemiBold,
+    local miscSelection = SettingsTab:Tab({
+        Title = "MISC",
+        TextSize = 20,
+    })
+    
+    local miscS = miscSelection:Section({
+        Title = "MISC",
+        TextSize = 20,
     })
     
     local tskin = Reg("toggleskin", miscS:Toggle({
@@ -2716,11 +2679,6 @@ do
         Icon = "slash",
         Callback = function(state)
             isVFXDisabled = state
-
-            if not VFXControllerModule then
-                WindUI:Notify({ Title = "Error", Content = "VFXController tidak ditemukan di game ini.", Duration = 4, Icon = "x" })
-                return
-            end
     
             if state then
                 -- 1. Blokir fungsi Handle (dipanggil oleh Handle Remote dan PlayVFX Signal)
@@ -2831,13 +2789,9 @@ do
         end
     }))
     
-    miscS:Divider()
-    
-    -- ===== UTILITY SECTION =====
-    local utilitySection = SettingsTab:Section({
-        Title = "Utility & Bypass",
-        TextSize = 18,
-        FontWeight = Enum.FontWeight.SemiBold,
+    local utilitySection = miscSelection:Section({
+        Title = "Utility",
+        TextSize = 20,
     })
     
     local RF_UnequipOxygenTank = GetRemote("RF/UnequipOxygenTank")
@@ -2898,16 +2852,10 @@ do
         end
     }))
     
-    utilitySection:Divider()
-    
     -- =================================================================
-    -- CINEMATIC TOOLS SECTION
+    -- 🎥 CINEMATIC / CONTENT TOOLS (V11 - CLEAN MODE FIX)
     -- =================================================================
-    local cinematic = SettingsTab:Section({ 
-        Title = "Cinematic / Content Tools", 
-        TextSize = 18,
-        FontWeight = Enum.FontWeight.SemiBold,
-    })
+    local cinematic = miscSelection:Section({ Title = "Cinematic / Content Tools", TextSize = 20})
     
     -- Services
     local Players = game:GetService("Players")
@@ -3119,13 +3067,9 @@ do
         end
     })
     
-    cinematic:Divider()
-    
-    -- ===== CONFIG MANAGER SECTION =====
-    local ConfigSection = SettingsTab:Section({
+    local ConfigSection = SettingsTab:Tab({
         Title = "Config Manager",
-        TextSize = 18,
-        FontWeight = Enum.FontWeight.SemiBold,
+        TextSize = 20,
     })
     
     -- Variabel Lokal
@@ -3214,19 +3158,10 @@ do
     })
 end
 
--- ==================================== Network Tab ===========================
-do
-    local NetworkTab = Window:Tab({
-        Title = "Network",
-        Icon = "activity",
-        Locked = false,
-    })
-
-    local NetworkMonitor = NetworkTab:Section({
-        Title = "Performance Monitor",
-        TextSize = 18,
-        FontWeight = Enum.FontWeight.SemiBold,
-    })
+local panelNetwork = Window:Tab({
+    Title = "Network",
+    Icon = "network",
+})
 
 -- Performance Monitor System
 local Players = game:GetService("Players")
@@ -3453,20 +3388,18 @@ local function DisableMonitor()
     })
 end
 
-    NetworkMonitor:Toggle({
-        Title = "Show Performance Monitor",
-        Desc = "Display real-time ping and CPU usage.",
-        Icon = "activity",
-        Value = false,
-        Callback = function(state)
-            if state then
-                EnableMonitor()
-            else
-                DisableMonitor()
-            end
+panelNetwork:Toggle({
+    Title = "Show Performance Monitor",
+    Icon = "activity",
+    Value = false,
+    Callback = function(state)
+        if state then
+            EnableMonitor()
+        else
+            DisableMonitor()
         end
-    })
-end
+    end
+})
 
 
 -- Auto Reload Icon saat Respawn
