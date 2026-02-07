@@ -19,10 +19,9 @@ local Window = WindUI:CreateWindow({
 
 -- =============================================================
 -- MAIN SIDEBAR LAYOUT (sesuai request user)
--- Main | Quest | Trade | Teleport | Shop | Config | Misc
+-- Main | Trade | Teleport | Shop | Config | Misc
 -- =============================================================
 local tabMain = Window:Tab({ Title = "Main", Icon = "home", Locked = false })
-local tabQuest = Window:Tab({ Title = "Quest", Icon = "book", Locked = false })
 local tabTrade = Window:Tab({ Title = "Trade", Icon = "repeat", Locked = false })
 local tabTeleport = Window:Tab({ Title = "Teleport", Icon = "map-pin", Locked = false })
 local tabShop = Window:Tab({ Title = "Shop", Icon = "shopping-cart", Locked = false })
@@ -1433,11 +1432,7 @@ end
 
 -- ==================================== Player Tab ===========================
 do
-    local player = Window:Tab({
-        Title = "Player",
-        Icon = "user",
-        Locked = false,
-    })
+    local player = tabMisc
 
     local InfinityJumpConnection = nil
     local DEFAULT_SPEED = 18
@@ -2155,10 +2150,10 @@ end
 
 -- ==================================== Webhook Tab ===========================
 do
-    local webhook = Window:Tab({
+    local webhook = tabMisc
+    local whSection = webhook:Section({
         Title = "Webhook",
-        Icon = "send",
-        Locked = false,
+        TextSize = 20,
     })
 
     -- Variabel lokal untuk menyimpan data
@@ -2453,7 +2448,7 @@ do
     -- UI IMPLEMENTATION (LANJUTAN)
     -- =================================================================
 
-   local inputweb = Reg("inptweb",webhook:Input({
+   local inputweb = Reg("inptweb",whSection:Input({
         Title = "Discord Webhook URL",
         Desc = "URL tempat notifikasi akan dikirim.",
         Value = "",
@@ -2465,9 +2460,11 @@ do
         end
     }))
 
-    webhook:Divider()
+    if whSection.Divider then
+        whSection:Divider()
+    end
     
-   local ToggleNotif = Reg("tweb",webhook:Toggle({
+   local ToggleNotif = Reg("tweb",whSection:Toggle({
         Title = "Enable Fish Notifications",
         Desc = "Aktifkan/nonaktifkan pengiriman notifikasi ikan.",
         Value = false,
@@ -2486,7 +2483,7 @@ do
         end
     }))
 
-    local dwebname = Reg("drweb", webhook:Dropdown({
+    local dwebname = Reg("drweb", whSection:Dropdown({
         Title = "Filter by Specific Name",
         Desc = "Notifikasi khusus untuk nama ikan tertentu",
         Values = getWebhookItemOptions(),
@@ -2498,7 +2495,7 @@ do
         end
     }))
 
-    local dwebrar = Reg("rarwebd", webhook:Dropdown({
+    local dwebrar = Reg("rarwebd", whSection:Dropdown({
         Title = "Rarity to Notify",
         Desc = "Hanya notifikasi ikan rarity yang dipilih.",
         Values = RarityList, -- Menggunakan list yang sudah distandarisasi
@@ -2513,14 +2510,14 @@ do
         end
     }))
 
-    WebhookStatusParagraph = webhook:Paragraph({
+    WebhookStatusParagraph = whSection:Paragraph({
         Title = "Webhook Status",
         Content = "Aktifkan 'Enable Fish Notifications' untuk mulai mendengarkan tangkapan ikan.",
         Icon = "info",
     })
     
 
-    local teswebbut = webhook:Button({
+    local teswebbut = whSection:Button({
         Title = "Test Webhook ",
         Icon = "send",
         Desc = "Mengirim Webhook Test",
@@ -2554,11 +2551,8 @@ end
 
 -- ==================================== Setting Tab ===========================
 do
-    local SettingsTab = Window:Section({
-        Title = "Configuration",
-        Icon = "settings",
-        Locked = false,
-    })
+    -- Pindahkan semua setting ke sidebar tabs yang sudah ada (Config + Misc)
+    local SettingsTab = tabMisc
     
     local isBoostActive = false
     local originalLightingValues = {}
@@ -2647,10 +2641,10 @@ do
         end
     end
     
-    -- Tambahkan di bagian atas blok 'utility'
-    local VFXControllerModule = require(game:GetService("ReplicatedStorage"):WaitForChild("Controllers").VFXController)
-    local originalVFXHandle = VFXControllerModule.Handle
-    local originalPlayVFX = VFXControllerModule.PlayVFX.Fire -- Asumsi PlayVFX adalah Signal/Event yang memiliki Fire
+    -- Tambahkan di bagian atas blok 'utility' (SafeRequire biar menu tidak crash)
+    local VFXControllerModule = SafeRequire(SafeWait(SafeWait(RepStorage, "Controllers", 10), "VFXController", 10))
+    local originalVFXHandle = (VFXControllerModule and VFXControllerModule.Handle) or nil
+    local originalPlayVFX = (VFXControllerModule and VFXControllerModule.PlayVFX and VFXControllerModule.PlayVFX.Fire) or nil -- optional
     
     -- Variabel global untuk status VFX
     local isVFXDisabled = false
@@ -2677,12 +2671,7 @@ do
         end
     end)
     
-    local miscSelection = SettingsTab:Tab({
-        Title = "MISC",
-        TextSize = 20,
-    })
-    
-    local miscS = miscSelection:Section({
+    local miscS = tabMisc:Section({
         Title = "MISC",
         TextSize = 20,
     })
@@ -2692,6 +2681,10 @@ do
         Value = false,
         Icon = "slash",
         Callback = function(state)
+            if not VFXControllerModule then
+                WindUI:Notify({ Title = "Error", Content = "VFXController tidak ditemukan.", Duration = 3, Icon = "x" })
+                return
+            end
             isVFXDisabled = state
     
             if state then
@@ -2711,7 +2704,9 @@ do
                 end
             else
                 -- 1. Kembalikan fungsi Handle asli
-                VFXControllerModule.Handle = originalVFXHandle
+                if originalVFXHandle then
+                    VFXControllerModule.Handle = originalVFXHandle
+                end
             end
         end
     }))
@@ -2803,7 +2798,7 @@ do
         end
     }))
     
-    local utilitySection = miscSelection:Section({
+    local utilitySection = tabMisc:Section({
         Title = "Utility",
         TextSize = 20,
     })
@@ -2869,7 +2864,7 @@ do
     -- =================================================================
     -- 🎥 CINEMATIC / CONTENT TOOLS (V11 - CLEAN MODE FIX)
     -- =================================================================
-    local cinematic = miscSelection:Section({ Title = "Cinematic / Content Tools", TextSize = 20})
+    local cinematic = tabMisc:Section({ Title = "Cinematic / Content Tools", TextSize = 20})
     
     -- Services
     local Players = game:GetService("Players")
@@ -3081,7 +3076,7 @@ do
         end
     })
     
-    local ConfigSection = SettingsTab:Tab({
+    local ConfigSection = tabConfig:Section({
         Title = "Config Manager",
         TextSize = 20,
     })
@@ -3128,7 +3123,9 @@ do
         Callback = function() RefreshConfigList(ConfigDropdown) end
     })
     
-    ConfigSection:Divider()
+    if ConfigSection.Divider then
+        ConfigSection:Divider()
+    end
     
     -- [FIXED] SAVE BUTTON
     ConfigSection:Button({
@@ -3172,9 +3169,9 @@ do
     })
 end
 
-local panelNetwork = Window:Tab({
+local panelNetwork = tabMisc:Section({
     Title = "Network",
-    Icon = "network",
+    TextSize = 20,
 })
 
 -- Performance Monitor System
