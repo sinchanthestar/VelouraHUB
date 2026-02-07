@@ -1879,15 +1879,16 @@ end
 
 
 -- ==================================== Automation Tab ===========================
-local AutomationTab = Window:Tab({
-    Title = "Automation",
-    Icon = "zap",
-    Locked = false,
-})
+do
+    local AutomationTab = Window:Tab({
+        Title = "Automation",
+        Icon = "zap",
+        Locked = false,
+    })
 
-local WeatherList = { "Storm", "Cloudy", "Snow", "Wind", "Radiant", "Shark Hunt" }
-local AutoWeatherState = false
-local AutoWeatherThread = nil
+    local WeatherList = { "Storm", "Cloudy", "Snow", "Wind", "Radiant", "Shark Hunt" }
+    local AutoWeatherState = false
+    local AutoWeatherThread = nil
 -- UBAH INI MENJADI TABEL UNTUK MENYIMPAN MULTI-SELEKSI
 local SelectedWeatherTypes = { WeatherList[1] }
 local RF_PurchaseWeatherEvent = GetRemote("RF/PurchaseWeatherEvent", 1)
@@ -2001,6 +2002,7 @@ local ToggleAutoBuy = Reg("shopweath",weathershop:Toggle({
         end
     end
 }))
+end
 
 -- ==================================== Teleport Tab ===========================
 do
@@ -3170,17 +3172,18 @@ do
 end
 
 -- ==================================== Network Tab ===========================
-local NetworkTab = Window:Tab({
-    Title = "Network",
-    Icon = "activity",
-    Locked = false,
-})
+do
+    local NetworkTab = Window:Tab({
+        Title = "Network",
+        Icon = "activity",
+        Locked = false,
+    })
 
-local NetworkMonitor = NetworkTab:Section({
-    Title = "Performance Monitor",
-    TextSize = 18,
-    FontWeight = Enum.FontWeight.SemiBold,
-})
+    local NetworkMonitor = NetworkTab:Section({
+        Title = "Performance Monitor",
+        TextSize = 18,
+        FontWeight = Enum.FontWeight.SemiBold,
+    })
 
 -- Performance Monitor System
 local Players = game:GetService("Players")
@@ -3407,19 +3410,20 @@ local function DisableMonitor()
     })
 end
 
-NetworkMonitor:Toggle({
-    Title = "Show Performance Monitor",
-    Desc = "Display real-time ping and CPU usage.",
-    Icon = "activity",
-    Value = false,
-    Callback = function(state)
-        if state then
-            EnableMonitor()
-        else
-            DisableMonitor()
+    NetworkMonitor:Toggle({
+        Title = "Show Performance Monitor",
+        Desc = "Display real-time ping and CPU usage.",
+        Icon = "activity",
+        Value = false,
+        Callback = function(state)
+            if state then
+                EnableMonitor()
+            else
+                DisableMonitor()
+            end
         end
-    end
-})
+    })
+end
 
 
 -- Auto Reload Icon saat Respawn
