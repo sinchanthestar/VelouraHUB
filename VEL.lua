@@ -38,8 +38,26 @@ local HttpService = game:GetService("HttpService")
 local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = game.Players.LocalPlayer
 local RepStorage = game:GetService("ReplicatedStorage") 
-local ItemUtility = require(RepStorage:WaitForChild("Shared"):WaitForChild("ItemUtility", 10))
-local TierUtility = require(RepStorage:WaitForChild("Shared"):WaitForChild("TierUtility", 10))
+
+local function SafeWait(parent, childName, timeout)
+    if not parent then return nil end
+    local ok, result = pcall(function()
+        return parent:WaitForChild(childName, timeout)
+    end)
+    if ok then return result end
+    return nil
+end
+
+local function SafeRequire(moduleScript)
+    if not moduleScript then return nil end
+    local ok, result = pcall(require, moduleScript)
+    if ok then return result end
+    return nil
+end
+
+local SharedFolder = SafeWait(RepStorage, "Shared", 10)
+local ItemUtility = SafeRequire(SafeWait(SharedFolder, "ItemUtility", 10))
+local TierUtility = SafeRequire(SafeWait(SharedFolder, "TierUtility", 10))
 
 --[[ SETUP REMOTE SESUAI GAMBAR ]]
 
@@ -512,8 +530,9 @@ do
     -- LOGIKA BARU UNTUK AUTO FISH LEGIT
     -- ===================================================================
     
-    local FishingController = require(RepStorage:WaitForChild("Controllers").FishingController)
-    local AutoFishingController = require(RepStorage:WaitForChild("Controllers").AutoFishingController)
+    local ControllersFolder = SafeWait(RepStorage, "Controllers", 10)
+    local FishingController = SafeRequire(ControllersFolder and ControllersFolder:FindFirstChild("FishingController"))
+    local AutoFishingController = SafeRequire(ControllersFolder and ControllersFolder:FindFirstChild("AutoFishingController"))
     
     local AutoFishState = {
         IsActive = false,
@@ -524,39 +543,48 @@ do
     local legitClickThread = nil
     
     local function performClick()
-        if FishingController then
+        if FishingController and FishingController.RequestFishingMinigameClick then
             FishingController:RequestFishingMinigameClick()
+            task.wait(SPEED_LEGIT)
+        else
             task.wait(SPEED_LEGIT)
         end
     end
-    
-    -- Hook FishingRodStarted (Minigame Aktif)
-    local originalRodStarted = FishingController.FishingRodStarted
-    FishingController.FishingRodStarted = function(self, arg1, arg2)
-        originalRodStarted(self, arg1, arg2)
-    
-        if AutoFishState.IsActive and not AutoFishState.MinigameActive then
-            AutoFishState.MinigameActive = true
-    
-            if legitClickThread then
-                task.cancel(legitClickThread)
-            end
-    
-            legitClickThread = task.spawn(function()
-                while AutoFishState.IsActive and AutoFishState.MinigameActive do
-                    performClick()
+
+    -- Hook hanya jika controller berhasil dimuat
+    if FishingController then
+        -- Hook FishingRodStarted (Minigame Aktif)
+        local originalRodStarted = FishingController.FishingRodStarted
+        if typeof(originalRodStarted) == "function" then
+            FishingController.FishingRodStarted = function(self, arg1, arg2)
+                originalRodStarted(self, arg1, arg2)
+
+                if AutoFishState.IsActive and not AutoFishState.MinigameActive then
+                    AutoFishState.MinigameActive = true
+
+                    if legitClickThread then
+                        task.cancel(legitClickThread)
+                    end
+
+                    legitClickThread = task.spawn(function()
+                        while AutoFishState.IsActive and AutoFishState.MinigameActive do
+                            performClick()
+                        end
+                    end)
                 end
-            end)
+            end
         end
-    end
-    
-    -- Hook FishingStopped
-    local originalFishingStopped = FishingController.FishingStopped
-    FishingController.FishingStopped = function(self, arg1)
-        originalFishingStopped(self, arg1)
-    
-        if AutoFishState.MinigameActive then
-            AutoFishState.MinigameActive = false
+
+        -- Hook FishingStopped
+        local originalFishingStopped = FishingController.FishingStopped
+        if typeof(originalFishingStopped) == "function" then
+            FishingController.FishingStopped = function(self, arg1)
+                originalFishingStopped(self, arg1)
+
+                if AutoFishState.MinigameActive then
+                    AutoFishState.MinigameActive = false
+                end
+            end
         end
     end
     
