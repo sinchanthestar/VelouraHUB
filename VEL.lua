@@ -17,6 +17,18 @@ local Window = WindUI:CreateWindow({
     ScrollBarEnabled = true,
 })
 
+-- =============================================================
+-- MAIN SIDEBAR LAYOUT (sesuai request user)
+-- Main | Quest | Trade | Teleport | Shop | Config | Misc
+-- =============================================================
+local tabMain = Window:Tab({ Title = "Main", Icon = "home", Locked = false })
+local tabQuest = Window:Tab({ Title = "Quest", Icon = "book", Locked = false })
+local tabTrade = Window:Tab({ Title = "Trade", Icon = "repeat", Locked = false })
+local tabTeleport = Window:Tab({ Title = "Teleport", Icon = "map-pin", Locked = false })
+local tabShop = Window:Tab({ Title = "Shop", Icon = "shopping-cart", Locked = false })
+local tabConfig = Window:Tab({ Title = "Config", Icon = "settings", Locked = false })
+local tabMisc = Window:Tab({ Title = "Misc", Icon = "more-horizontal", Locked = false })
+
 local SelectedConfigName = "AutoFish" -- Default
 -- [[ 1. CONFIGURATION SYSTEM SETUP ]] --
 local RockHubConfig = Window.ConfigManager:CreateConfig(SelectedConfigName)
@@ -287,11 +299,8 @@ table.sort(AreaNames)
 
 -- ======================================= Fishing Tab ========================
 do
-    local FishingTab = Window:Section({
-        Title = "Fishing",
-        Icon = "fish",
-        Locked = false,
-    })
+    -- Semua fitur Fishing ditaruh di tab sidebar "Main" (tanpa sub-tab)
+    local FishingTab = tabMain
     
     local RE_EquipToolFromHotbar = GetRemote("RE/EquipToolFromHotbar")
     local RF_ChargeFishingRod    = GetRemote("RF/ChargeFishingRod")
@@ -628,21 +637,12 @@ do
     -- =============================================================
     -- UI LAYOUT (RAPIH) - TIDAK MENGHILANGKAN FITUR
     -- =============================================================
-    local tabSupport = FishingTab:Tab({
-        Title = "Support",
+    local secSupport = FishingTab:Section({
+        Title = "Fishing Support",
         TextSize = 20,
-        FontWeight = Enum.FontWeight.SemiBold,
     })
 
-    if tabSupport.Paragraph then
-        tabSupport:Paragraph({
-            Title = "Fishing Support",
-            Content = "Fitur pendukung: platform air, equip rod, stealth, notif, trade.",
-            Icon = "info",
-        })
-    end
-
-    Reg("wlkonwtr", tabSupport:Toggle({
+    Reg("wlkonwtr", secSupport:Toggle({
         Title = "Walk On Water",
         Value = false,
         Callback = function(state)
@@ -657,7 +657,7 @@ do
         end
     }))
 
-    Reg("autoerod", tabSupport:Toggle({
+    Reg("autoerod", secSupport:Toggle({
         Title = "Auto Equip Rod",
         Value = false,
         Callback = function(enabled)
@@ -676,7 +676,7 @@ do
         end
     }))
 
-    Reg("disAnim", tabSupport:Toggle({
+    Reg("disAnim", secSupport:Toggle({
         Title = "Disable Animation",
         Value = false,
         Callback = function(enabled)
@@ -689,7 +689,7 @@ do
         end
     }))
 
-    Reg("disNotif", tabSupport:Toggle({
+    Reg("disNotif", secSupport:Toggle({
         Title = "Disable Fish Notif",
         Value = false,
         Callback = function(disable)
@@ -700,19 +700,9 @@ do
         end
     }))
 
-    Reg("autoacc", tabSupport:Toggle({
-        Title = "Auto Accept Trade",
-        Value = false,
-        Callback = function(enabled)
-            _G.BloxFish_AutoAcceptTradeEnabled = enabled
-        end
-    }))
+    -- Auto Accept Trade dipindahkan ke tab "Trade" (biar rapi sesuai sidebar request)
 
-    if tabSupport.Divider then
-        tabSupport:Divider()
-    end
-
-    Reg("sth_height", tabSupport:Input({
+    Reg("sth_height", secSupport:Input({
         Title = "Stealth Height",
         Value = tostring(stealthHight or 110),
         Type = "Input",
@@ -723,7 +713,7 @@ do
         end
     }))
 
-    Reg("stealth", tabSupport:Toggle({
+    Reg("stealth", secSupport:Toggle({
         Title = "Stealth Mode",
         Value = false,
         Callback = function(state)
@@ -747,16 +737,9 @@ do
     -- =========================
     -- AUTO (LEGIT)
     -- =========================
-    local tabAuto = FishingTab:Tab({
-        Title = "Auto (Legit)",
-        TextSize = 20,
-        FontWeight = Enum.FontWeight.SemiBold,
-    })
-
-    local secLegit = tabAuto:Section({
+    local secLegit = FishingTab:Section({
         Title = "Auto Fish (Legit)",
         TextSize = 20,
-        FontWeight = Enum.FontWeight.SemiBold,
     })
 
     Reg("klikd", secLegit:Slider({
@@ -782,16 +765,9 @@ do
     -- =========================
     -- INSTANT
     -- =========================
-    local tabInstant = FishingTab:Tab({
-        Title = "Instant",
-        TextSize = 20,
-        FontWeight = Enum.FontWeight.SemiBold,
-    })
-
-    local secInstant = tabInstant:Section({
+    local secInstant = FishingTab:Section({
         Title = "Instant Fishing",
         TextSize = 20,
-        FontWeight = Enum.FontWeight.SemiBold,
     })
 
     Reg("instdelay", secInstant:Input({
@@ -829,16 +805,9 @@ do
     -- =========================
     -- BLATANT
     -- =========================
-    local tabBlatant = FishingTab:Tab({
-        Title = "Blatant",
-        TextSize = 20,
-        FontWeight = Enum.FontWeight.SemiBold,
-    })
-
-    local secV1 = tabBlatant:Section({
+    local secV1 = FishingTab:Section({
         Title = "Blatant V1",
         TextSize = 20,
-        FontWeight = Enum.FontWeight.SemiBold,
     })
 
     Reg("blatV1cast", secV1:Input({
@@ -902,10 +871,9 @@ do
         end)
     end
 
-    local secV2 = tabBlatant:Section({
+    local secV2 = FishingTab:Section({
         Title = "Blatant V2",
         TextSize = 20,
-        FontWeight = Enum.FontWeight.SemiBold,
     })
 
     Reg("blatV2bait", secV2:Input({
@@ -998,10 +966,22 @@ do
         -- FUNGSI HELPER: Mendapatkan semua item yang memenuhi kriteria (DIFORWARD KE FAVORITE)
         -- GANTI FUNGSI LAMA 'GetItemsToFavorite' DENGAN YANG INI:
     
-    local favsec = FishingTab:Tab({
-        Title = "Favorite",
+    -- =========================
+    -- TRADE (Auto Accept + Favorite/Unfavorite)
+    -- =========================
+    local tradeSupport = tabTrade:Section({ Title = "Trade Support", TextSize = 20 })
+
+    Reg("autoacc", tradeSupport:Toggle({
+        Title = "Auto Accept Trade",
+        Value = false,
+        Callback = function(enabled)
+            _G.BloxFish_AutoAcceptTradeEnabled = enabled
+        end
+    }))
+
+    local favsec = tabTrade:Section({
+        Title = "Auto Favorite / Unfavorite",
         TextSize = 20,
-        FontWeight = Enum.FontWeight.SemiBold,
     })
     
     local function GetItemsToFavorite()
@@ -1329,10 +1309,9 @@ do
        -- =================================================================
     -- 💰 UNIFIED AUTO SELL SYSTEM (BY DELAY / BY COUNT)
     -- =================================================================
-    local sellall = FishingTab:Tab({
-        Title = "Sell",
+    local sellall = tabShop:Section({
+        Title = "Auto Sell Fish",
         TextSize = 20,
-        FontWeight = Enum.FontWeight.SemiBold,
     })
     
     -- Variabel Global Auto Sell Baru
@@ -1930,12 +1909,8 @@ do
 end
 
 
--- ==================================== automation Tab ===========================
-local automatic = Window:Tab({
-    Title = "Automatic",
-    Icon = "loader",
-    Locked = false,
-})
+-- ==================================== Shop Tab ===========================
+local automatic = tabShop
 
 local WeatherList = { "Storm", "Cloudy", "Snow", "Wind", "Radiant", "Shark Hunt" }
 local AutoWeatherState = false
@@ -2001,8 +1976,13 @@ local function RunAutoBuyWeatherLoop(weatherTypes)
             end
         end
         AutoWeatherThread = nil
-        local toggle = shop:GetElementByTitle("Enable Auto Buy Weather")
-        if toggle and toggle.Set then toggle:Set(false) end
+        -- Fail-safe: jangan crash kalau API element lookup tidak tersedia
+        pcall(function()
+            if weathershop and weathershop.GetElementByTitle then
+                local toggle = weathershop:GetElementByTitle("Enable Auto Buy Weather")
+                if toggle and toggle.Set then toggle:Set(false) end
+            end
+        end)
     end)
 end
 
@@ -2052,11 +2032,7 @@ local ToggleAutoBuy = Reg("shopweath",weathershop:Toggle({
 
 -- ==================================== automation Tab ===========================
 do
-    local teleport = Window:Tab({
-        Title = "Teleport",
-        Icon = "map-pin",
-        Locked = false,
-    })
+    local teleport = tabTeleport
 
     local selectedTargetPlayer = nil -- Nama pemain yang dipilih
     local selectedTargetArea = nil -- Nama area yang dipilih
