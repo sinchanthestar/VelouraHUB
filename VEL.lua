@@ -304,9 +304,25 @@ do
     local RE_EquipToolFromHotbar = GetRemote("RE/EquipToolFromHotbar")
     local RF_ChargeFishingRod    = GetRemote("RF/ChargeFishingRod")
     local RF_RequestFishingMinigameStarted = GetRemote("RF/RequestFishingMinigameStarted")
-    local RE_FishingCompleted    = GetRemote("RE/FishingCompleted")
+    -- [UPDATE] Remote completion terbaru
+    local RE_FishingCompleted    = GetRemote("RF/CatchFishCompleted")
     local RF_CancelFishingInputs = GetRemote("RF/CancelFishingInputs")
     local RF_UpdateAutoFishingState = GetRemote("RF/UpdateAutoFishingState")
+
+    local function CallRemote(remote, ...)
+        if not remote then return false end
+        local ok = false
+        if typeof(remote) == "Instance" and typeof(remote.InvokeServer) == "function" then
+            ok = pcall(function()
+                remote:InvokeServer(...)
+            end)
+        elseif typeof(remote) == "Instance" and typeof(remote.FireServer) == "function" then
+            ok = pcall(function()
+                remote:FireServer(...)
+            end)
+        end
+        return ok
+    end
     
     local instantLoopThread = nil
     local blatantFishv1LoopThread = nil
@@ -453,44 +469,44 @@ do
     end
     
     local function instantOk()
-        RF_ChargeFishingRod:InvokeServer(1, 0.999)
-        RF_RequestFishingMinigameStarted:InvokeServer(1, 0.999)
+        CallRemote(RF_ChargeFishingRod, 1, 0.999)
+        CallRemote(RF_RequestFishingMinigameStarted, 1, 0.999)
         task.wait(tonumber(minigameDelay) or 1)
-        RE_FishingCompleted:FireServer()
+        CallRemote(RE_FishingCompleted)
         task.wait(0.3)
-        RF_CancelFishingInputs:InvokeServer()
+        CallRemote(RF_CancelFishingInputs)
     end
     
     local function blatantFishv1()
         task.spawn(function()
-            RF_CancelFishingInputs:InvokeServer(1, 0.99)
+            CallRemote(RF_CancelFishingInputs, 1, 0.99)
         end)
         task.spawn(function()
-            RF_ChargeFishingRod:InvokeServer(1, 0.99)
+            CallRemote(RF_ChargeFishingRod, 1, 0.99)
         end)
         task.spawn(function()
             task.wait(0.016)
-            RF_RequestFishingMinigameStarted:InvokeServer(1, 0.99)
+            CallRemote(RF_RequestFishingMinigameStarted, 1, 0.99)
             task.wait(tonumber(minigameDelay) or 0.97)
-            RE_FishingCompleted:FireServer()
+            CallRemote(RE_FishingCompleted)
         end)
     end
     
     -- Legacy (tidak dipakai oleh UI BlatantV2 yang baru, tapi disimpan agar fitur tidak hilang)
     local function blatantFishv2_Legacy()
         task.spawn(function()
-            pcall(function() RF_CancelFishingInputs:InvokeServer() end)
+            CallRemote(RF_CancelFishingInputs)
         end)
         task.spawn(function()
-            pcall(function() RF_ChargeFishingRod:InvokeServer(1, 0.999) end)
+            CallRemote(RF_ChargeFishingRod, 1, 0.999)
         end)
         task.spawn(function()
             task.wait(0.016)
-            pcall(function() RF_RequestFishingMinigameStarted:InvokeServer(1, 0.999) end)
+            CallRemote(RF_RequestFishingMinigameStarted, 1, 0.999)
         end)
         task.spawn(function()
             task.wait(tonumber(minigameDelay) or 0.5)
-            pcall(function() RE_FishingCompleted:FireServer() end)
+            CallRemote(RE_FishingCompleted)
         end)
     end
     
@@ -526,7 +542,10 @@ do
             if method == "InvokeServer" and (self.Name == "RequestFishingMinigameStarted" or self.Name == "ChargeFishingRod" or self.Name == "UpdateAutoFishingState") then
                 return nil 
             end
-            if method == "FireServer" and self.Name == "FishingCompleted" then
+            if method == "InvokeServer" and (self.Name == "CatchFishCompleted" or self.Name == "RF/CatchFishCompleted") then
+                return nil
+            end
+            if method == "FireServer" and (self.Name == "FishingCompleted" or self.Name == "RE/FishingCompleted") then
                 return nil
             end
         end
@@ -854,19 +873,25 @@ do
     --[[ LOGIKA UTAMA - BLATANT V2 ]]
     local function blatantFishv2()
         pcall(function()
-            RF_Charge:InvokeServer(1)
+            if RF_Charge then RF_Charge:InvokeServer(1, 0.999) end
         end)
 
         task.wait(tonumber(cycleDelay) or 3.5)
 
         pcall(function()
-            RF_StartGame:InvokeServer()
+            if RF_StartGame then RF_StartGame:InvokeServer(1, 0.999) end
         end)
 
         task.wait(tonumber(minigameDelay) or 0.5)
 
         pcall(function()
-            RF_Complete:InvokeServer()
+            if RF_Complete then
+                if typeof(RF_Complete.InvokeServer) == "function" then
+                    RF_Complete:InvokeServer()
+                elseif typeof(RF_Complete.FireServer) == "function" then
+                    RF_Complete:FireServer()
+                end
+            end
         end)
     end
 
