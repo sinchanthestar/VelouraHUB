@@ -1,4 +1,4 @@
-local Library = loadstring(readfile("Library.lua"))()
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/sinchanthestar/VelouraHUB/refs/heads/main/Library.lua"))()
 if not Library then
     return
 end
