@@ -305,7 +305,7 @@ do
     local RF_ChargeFishingRod    = GetRemote("RF/ChargeFishingRod")
     local RF_RequestFishingMinigameStarted = GetRemote("RF/RequestFishingMinigameStarted")
     -- [UPDATE] Remote completion terbaru
-    local RE_FishingCompleted    = GetRemote("RF/CatchFishCompleted")
+    local RF_CatchFishCompleted  = GetRemote("RF/CatchFishCompleted")
     local RF_CancelFishingInputs = GetRemote("RF/CancelFishingInputs")
     local RF_UpdateAutoFishingState = GetRemote("RF/UpdateAutoFishingState")
 
@@ -472,7 +472,7 @@ do
         CallRemote(RF_ChargeFishingRod, 1, 0.999)
         CallRemote(RF_RequestFishingMinigameStarted, 1, 0.999)
         task.wait(tonumber(minigameDelay) or 1)
-        CallRemote(RE_FishingCompleted)
+        CallRemote(RF_CatchFishCompleted)
         task.wait(0.3)
         CallRemote(RF_CancelFishingInputs)
     end
@@ -488,7 +488,7 @@ do
             task.wait(0.016)
             CallRemote(RF_RequestFishingMinigameStarted, 1, 0.99)
             task.wait(tonumber(minigameDelay) or 0.97)
-            CallRemote(RE_FishingCompleted)
+            CallRemote(RF_CatchFishCompleted)
         end)
     end
     
@@ -506,7 +506,7 @@ do
         end)
         task.spawn(function()
             task.wait(tonumber(minigameDelay) or 0.5)
-            CallRemote(RE_FishingCompleted)
+            CallRemote(RF_CatchFishCompleted)
         end)
     end
     
