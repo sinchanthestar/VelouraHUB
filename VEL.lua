@@ -154,12 +154,10 @@ pcall(function()
     local player = game:GetService("Players").LocalPlayer
     
     -- Cek semua koneksi yang terhubung ke event Idled pemain lokal
-    if type(getconnections) == "function" then
-        for i, v in pairs(getconnections(player.Idled)) do
-            if v.Disable then
-                v:Disable() -- Menonaktifkan koneksi event
-                print("[BloxFishHub Anti-AFK] ON")
-            end
+    for i, v in pairs(getconnections(player.Idled)) do
+        if v.Disable then
+            v:Disable() -- Menonaktifkan koneksi event
+            print("[BloxFishHub Anti-AFK] ON")
         end
     end
 end)
@@ -307,7 +305,7 @@ do
     local RF_ChargeFishingRod    = GetRemote("RF/ChargeFishingRod")
     local RF_RequestFishingMinigameStarted = GetRemote("RF/RequestFishingMinigameStarted")
     -- [UPDATE] Remote completion terbaru
-    local RF_CatchFishCompleted  = GetRemote("RF/CatchFishCompleted")
+    local RE_FishingCompleted    = GetRemote("RF/CatchFishCompleted")
     local RF_CancelFishingInputs = GetRemote("RF/CancelFishingInputs")
     local RF_UpdateAutoFishingState = GetRemote("RF/UpdateAutoFishingState")
 
@@ -474,7 +472,7 @@ do
         CallRemote(RF_ChargeFishingRod, 1, 0.999)
         CallRemote(RF_RequestFishingMinigameStarted, 1, 0.999)
         task.wait(tonumber(minigameDelay) or 1)
-        CallRemote(RF_CatchFishCompleted)
+        CallRemote(RE_FishingCompleted)
         task.wait(0.3)
         CallRemote(RF_CancelFishingInputs)
     end
@@ -490,7 +488,7 @@ do
             task.wait(0.016)
             CallRemote(RF_RequestFishingMinigameStarted, 1, 0.99)
             task.wait(tonumber(minigameDelay) or 0.97)
-            CallRemote(RF_CatchFishCompleted)
+            CallRemote(RE_FishingCompleted)
         end)
     end
     
@@ -508,7 +506,7 @@ do
         end)
         task.spawn(function()
             task.wait(tonumber(minigameDelay) or 0.5)
-            CallRemote(RF_CatchFishCompleted)
+            CallRemote(RE_FishingCompleted)
         end)
     end
     
@@ -534,37 +532,26 @@ do
     end)
     
     -- [[ 2. REMOTE KILLER: BLOKIR KOMUNIKASI ]]
-    pcall(function()
-        if type(getrawmetatable) ~= "function" then return end
-        if type(setreadonly) ~= "function" then return end
-        if type(newcclosure) ~= "function" then return end
-        if type(getnamecallmethod) ~= "function" then return end
-        if type(checkcaller) ~= "function" then return end
-
-        local mt = getrawmetatable(game)
-        if not mt then return end
-        local old_namecall = mt.__namecall
-        if type(old_namecall) ~= "function" then return end
-
-        setreadonly(mt, false)
-        mt.__namecall = newcclosure(function(self, ...)
-            local method = getnamecallmethod()
-            if _G.BloxFish_BlatantActive and not checkcaller() then
-                -- Cegah game mengirim request mancing atau request update state
-                if method == "InvokeServer" and (self.Name == "RequestFishingMinigameStarted" or self.Name == "ChargeFishingRod" or self.Name == "UpdateAutoFishingState") then
-                    return nil 
-                end
-                if method == "InvokeServer" and self.Name == "CatchFishCompleted" then
-                    return nil
-                end
-                if method == "FireServer" and self.Name == "FishingCompleted" then
-                    return nil
-                end
+    local mt = getrawmetatable(game)
+    local old_namecall = mt.__namecall
+    setreadonly(mt, false)
+    mt.__namecall = newcclosure(function(self, ...)
+        local method = getnamecallmethod()
+        if _G.BloxFish_BlatantActive and not checkcaller() then
+            -- Cegah game mengirim request mancing atau request update state
+            if method == "InvokeServer" and (self.Name == "RequestFishingMinigameStarted" or self.Name == "ChargeFishingRod" or self.Name == "UpdateAutoFishingState") then
+                return nil 
             end
-            return old_namecall(self, ...)
-        end)
-        setreadonly(mt, true)
+            if method == "InvokeServer" and (self.Name == "CatchFishCompleted" or self.Name == "RF/CatchFishCompleted") then
+                return nil
+            end
+            if method == "FireServer" and (self.Name == "FishingCompleted" or self.Name == "RE/FishingCompleted") then
+                return nil
+            end
+        end
+        return old_namecall(self, ...)
     end)
+    setreadonly(mt, true)
     
     -- ===================================================================
     -- LOGIKA BARU UNTUK AUTO FISH LEGIT
@@ -886,25 +873,19 @@ do
     --[[ LOGIKA UTAMA - BLATANT V2 ]]
     local function blatantFishv2()
         pcall(function()
-            if RF_Charge then RF_Charge:InvokeServer(1, 0.999) end
+            RF_Charge:InvokeServer(1)
         end)
 
         task.wait(tonumber(cycleDelay) or 3.5)
 
         pcall(function()
-            if RF_StartGame then RF_StartGame:InvokeServer(1, 0.999) end
+            RF_StartGame:InvokeServer()
         end)
 
         task.wait(tonumber(minigameDelay) or 0.5)
 
         pcall(function()
-            if RF_Complete then
-                if typeof(RF_Complete.InvokeServer) == "function" then
-                    RF_Complete:InvokeServer()
-                elseif typeof(RF_Complete.FireServer) == "function" then
-                    RF_Complete:FireServer()
-                end
-            end
+            RF_Complete:InvokeServer()
         end)
     end
 
