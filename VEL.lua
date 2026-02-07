@@ -154,10 +154,12 @@ pcall(function()
     local player = game:GetService("Players").LocalPlayer
     
     -- Cek semua koneksi yang terhubung ke event Idled pemain lokal
-    for i, v in pairs(getconnections(player.Idled)) do
-        if v.Disable then
-            v:Disable() -- Menonaktifkan koneksi event
-            print("[BloxFishHub Anti-AFK] ON")
+    if type(getconnections) == "function" then
+        for i, v in pairs(getconnections(player.Idled)) do
+            if v.Disable then
+                v:Disable() -- Menonaktifkan koneksi event
+                print("[BloxFishHub Anti-AFK] ON")
+            end
         end
     end
 end)
@@ -532,26 +534,37 @@ do
     end)
     
     -- [[ 2. REMOTE KILLER: BLOKIR KOMUNIKASI ]]
-    local mt = getrawmetatable(game)
-    local old_namecall = mt.__namecall
-    setreadonly(mt, false)
-    mt.__namecall = newcclosure(function(self, ...)
-        local method = getnamecallmethod()
-        if _G.BloxFish_BlatantActive and not checkcaller() then
-            -- Cegah game mengirim request mancing atau request update state
-            if method == "InvokeServer" and (self.Name == "RequestFishingMinigameStarted" or self.Name == "ChargeFishingRod" or self.Name == "UpdateAutoFishingState") then
-                return nil 
+    pcall(function()
+        if type(getrawmetatable) ~= "function" then return end
+        if type(setreadonly) ~= "function" then return end
+        if type(newcclosure) ~= "function" then return end
+        if type(getnamecallmethod) ~= "function" then return end
+        if type(checkcaller) ~= "function" then return end
+
+        local mt = getrawmetatable(game)
+        if not mt then return end
+        local old_namecall = mt.__namecall
+        if type(old_namecall) ~= "function" then return end
+
+        setreadonly(mt, false)
+        mt.__namecall = newcclosure(function(self, ...)
+            local method = getnamecallmethod()
+            if _G.BloxFish_BlatantActive and not checkcaller() then
+                -- Cegah game mengirim request mancing atau request update state
+                if method == "InvokeServer" and (self.Name == "RequestFishingMinigameStarted" or self.Name == "ChargeFishingRod" or self.Name == "UpdateAutoFishingState") then
+                    return nil 
+                end
+                if method == "InvokeServer" and self.Name == "CatchFishCompleted" then
+                    return nil
+                end
+                if method == "FireServer" and self.Name == "FishingCompleted" then
+                    return nil
+                end
             end
-            if method == "InvokeServer" and (self.Name == "CatchFishCompleted" or self.Name == "RF/CatchFishCompleted") then
-                return nil
-            end
-            if method == "FireServer" and (self.Name == "FishingCompleted" or self.Name == "RE/FishingCompleted") then
-                return nil
-            end
-        end
-        return old_namecall(self, ...)
+            return old_namecall(self, ...)
+        end)
+        setreadonly(mt, true)
     end)
-    setreadonly(mt, true)
     
     -- ===================================================================
     -- LOGIKA BARU UNTUK AUTO FISH LEGIT
