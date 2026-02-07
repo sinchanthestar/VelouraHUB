@@ -1,12 +1,18 @@
 local function ensureGuiParent(gui)
     if syn and syn.protect_gui then
         syn.protect_gui(gui)
-        gui.Parent = game.CoreGui
-    elseif gethui then
-        gui.Parent = gethui()
-    else
-        gui.Parent = game.CoreGui
     end
+    if gethui then
+        gui.Parent = gethui()
+        return
+    end
+    local lp = game:GetService("Players").LocalPlayer
+    if lp then
+        local pg = lp:FindFirstChild("PlayerGui") or lp:WaitForChild("PlayerGui")
+        gui.Parent = pg
+        return
+    end
+    gui.Parent = game.CoreGui
 end
 
 local function showDebugBanner(text)
@@ -35,19 +41,51 @@ end
 showDebugBanner("FishIt: script running...")
 
 local Library
-local ok, libOrErr = pcall(function()
-    return loadstring(game:HttpGet("https://raw.githubusercontent.com/sinchanthestar/VelouraHUB/refs/heads/main/Library.lua"))()
-end)
-if not ok then
-    warn("Library load failed:", libOrErr)
-    showDebugBanner("FishIt: Library load failed")
+local function tryLoadLibrary()
+    if not loadstring then
+        return nil, "loadstring is not available"
+    end
+
+    local url = "https://raw.githubusercontent.com/sinchanthestar/VelouraHUB/refs/heads/main/Library.lua"
+    local okHttp, bodyOrErr = pcall(function()
+        return game:HttpGet(url)
+    end)
+    if okHttp and type(bodyOrErr) == "string" and #bodyOrErr > 0 then
+        local okLoad, libOrErr = pcall(function()
+            return loadstring(bodyOrErr)()
+        end)
+        if okLoad then
+            return libOrErr, nil
+        end
+        return nil, tostring(libOrErr)
+    end
+
+    if readfile then
+        local okFile, fileBody = pcall(function()
+            return readfile("Library.lua")
+        end)
+        if okFile and type(fileBody) == "string" and #fileBody > 0 then
+            local okLoad, libOrErr = pcall(function()
+                return loadstring(fileBody)()
+            end)
+            if okLoad then
+                return libOrErr, nil
+            end
+            return nil, tostring(libOrErr)
+        end
+        return nil, "readfile failed"
+    end
+
+    return nil, tostring(bodyOrErr)
+end
+
+local lib, libErr = tryLoadLibrary()
+if not lib then
+    warn("Library load failed:", libErr)
+    showDebugBanner("FishIt: Library load failed - " .. tostring(libErr))
     return
 end
-Library = libOrErr
-if not Library then
-    showDebugBanner("FishIt: Library returned nil")
-    return
-end
+Library = lib
 
 local Services = {
     Players = game:GetService("Players"),
