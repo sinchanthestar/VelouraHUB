@@ -1,4 +1,6 @@
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/sinchanthestar/VelouraHUB/refs/heads/main/Library.lua"))()
+print("Library exists:", isfile and isfile("Library.lua"))
+local Library = loadstring(readfile("Library.lua"))()
+print("Library loaded:", Library ~= nil)
 if not Library then
     return
 end
