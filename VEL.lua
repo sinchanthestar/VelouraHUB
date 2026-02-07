@@ -38,8 +38,26 @@ local HttpService = game:GetService("HttpService")
 local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = game.Players.LocalPlayer
 local RepStorage = game:GetService("ReplicatedStorage") 
-local ItemUtility = require(RepStorage:WaitForChild("Shared"):WaitForChild("ItemUtility", 10))
-local TierUtility = require(RepStorage:WaitForChild("Shared"):WaitForChild("TierUtility", 10))
+
+local function SafeWaitForChild(parent, childName, timeout)
+    if not parent then return nil end
+    local ok, child = pcall(function()
+        return parent:WaitForChild(childName, timeout)
+    end)
+    if ok then return child end
+    return nil
+end
+
+local function SafeRequire(moduleScript)
+    if not moduleScript then return nil end
+    local ok, result = pcall(require, moduleScript)
+    if ok then return result end
+    return nil
+end
+
+local SharedFolder = RepStorage:FindFirstChild("Shared") or SafeWaitForChild(RepStorage, "Shared", 10)
+local ItemUtility = SafeRequire(SharedFolder and SafeWaitForChild(SharedFolder, "ItemUtility", 10))
+local TierUtility = SafeRequire(SharedFolder and SafeWaitForChild(SharedFolder, "TierUtility", 10))
 
 local pos_saved = nil
 local look_saved = nil
@@ -477,30 +495,43 @@ do
     end)
     
     -- [[ 2. REMOTE KILLER: BLOKIR KOMUNIKASI ]]
-    local mt = getrawmetatable(game)
-    local old_namecall = mt.__namecall
-    setreadonly(mt, false)
-    mt.__namecall = newcclosure(function(self, ...)
-        local method = getnamecallmethod()
-        if _G.BloxFish_BlatantActive and not checkcaller() then
-            -- Cegah game mengirim request mancing atau request update state
-            if method == "InvokeServer" and (self.Name == "RequestFishingMinigameStarted" or self.Name == "ChargeFishingRod" or self.Name == "UpdateAutoFishingState") then
-                return nil 
+    -- Catatan: Beberapa executor tidak support getrawmetatable/newcclosure.
+    pcall(function()
+        if type(getrawmetatable) ~= "function" then return end
+        if type(setreadonly) ~= "function" then return end
+        if type(newcclosure) ~= "function" then return end
+        if type(getnamecallmethod) ~= "function" then return end
+        if type(checkcaller) ~= "function" then return end
+
+        local mt = getrawmetatable(game)
+        if not mt then return end
+        local old_namecall = mt.__namecall
+        if type(old_namecall) ~= "function" then return end
+
+        setreadonly(mt, false)
+        mt.__namecall = newcclosure(function(self, ...)
+            local method = getnamecallmethod()
+            if _G.BloxFish_BlatantActive and not checkcaller() then
+                -- Cegah game mengirim request mancing atau request update state
+                if method == "InvokeServer" and (self.Name == "RequestFishingMinigameStarted" or self.Name == "ChargeFishingRod" or self.Name == "UpdateAutoFishingState") then
+                    return nil
+                end
+                if method == "FireServer" and self.Name == "FishingCompleted" then
+                    return nil
+                end
             end
-            if method == "FireServer" and self.Name == "FishingCompleted" then
-                return nil
-            end
-        end
-        return old_namecall(self, ...)
+            return old_namecall(self, ...)
+        end)
+        setreadonly(mt, true)
     end)
-    setreadonly(mt, true)
     
     -- ===================================================================
     -- LOGIKA BARU UNTUK AUTO FISH LEGIT
     -- ===================================================================
-    
-    local FishingController = require(RepStorage:WaitForChild("Controllers").FishingController)
-    local AutoFishingController = require(RepStorage:WaitForChild("Controllers").AutoFishingController)
+
+    local ControllersFolder = RepStorage:FindFirstChild("Controllers") or SafeWaitForChild(RepStorage, "Controllers", 10)
+    local FishingController = SafeRequire(ControllersFolder and ControllersFolder:FindFirstChild("FishingController"))
+    local AutoFishingController = SafeRequire(ControllersFolder and ControllersFolder:FindFirstChild("AutoFishingController"))
     
     local AutoFishState = {
         IsActive = false,
@@ -517,33 +548,39 @@ do
         end
     end
     
-    -- Hook FishingRodStarted (Minigame Aktif)
-    local originalRodStarted = FishingController.FishingRodStarted
-    FishingController.FishingRodStarted = function(self, arg1, arg2)
-        originalRodStarted(self, arg1, arg2)
-    
-        if AutoFishState.IsActive and not AutoFishState.MinigameActive then
-            AutoFishState.MinigameActive = true
-    
-            if legitClickThread then
-                task.cancel(legitClickThread)
+    if FishingController and AutoFishingController then
+        -- Hook FishingRodStarted (Minigame Aktif)
+        local originalRodStarted = FishingController.FishingRodStarted
+        FishingController.FishingRodStarted = function(self, arg1, arg2)
+            if originalRodStarted then
+                originalRodStarted(self, arg1, arg2)
             end
-    
-            legitClickThread = task.spawn(function()
-                while AutoFishState.IsActive and AutoFishState.MinigameActive do
-                    performClick()
+
+            if AutoFishState.IsActive and not AutoFishState.MinigameActive then
+                AutoFishState.MinigameActive = true
+
+                if legitClickThread then
+                    task.cancel(legitClickThread)
                 end
-            end)
+
+                legitClickThread = task.spawn(function()
+                    while AutoFishState.IsActive and AutoFishState.MinigameActive do
+                        performClick()
+                    end
+                end)
+            end
         end
-    end
-    
-    -- Hook FishingStopped
-    local originalFishingStopped = FishingController.FishingStopped
-    FishingController.FishingStopped = function(self, arg1)
-        originalFishingStopped(self, arg1)
-    
-        if AutoFishState.MinigameActive then
-            AutoFishState.MinigameActive = false
+
+        -- Hook FishingStopped
+        local originalFishingStopped = FishingController.FishingStopped
+        FishingController.FishingStopped = function(self, arg1)
+            if originalFishingStopped then
+                originalFishingStopped(self, arg1)
+            end
+
+            if AutoFishState.MinigameActive then
+                AutoFishState.MinigameActive = false
+            end
         end
     end
     
@@ -2636,9 +2673,10 @@ do
     end
     
     -- Tambahkan di bagian atas blok 'utility'
-    local VFXControllerModule = require(game:GetService("ReplicatedStorage"):WaitForChild("Controllers").VFXController)
-    local originalVFXHandle = VFXControllerModule.Handle
-    local originalPlayVFX = VFXControllerModule.PlayVFX.Fire -- Asumsi PlayVFX adalah Signal/Event yang memiliki Fire
+    local ControllersFolder2 = game:GetService("ReplicatedStorage"):FindFirstChild("Controllers") or SafeWaitForChild(game:GetService("ReplicatedStorage"), "Controllers", 10)
+    local VFXControllerModule = SafeRequire(ControllersFolder2 and ControllersFolder2:FindFirstChild("VFXController"))
+    local originalVFXHandle = VFXControllerModule and VFXControllerModule.Handle or nil
+    local originalPlayVFX = (VFXControllerModule and VFXControllerModule.PlayVFX and VFXControllerModule.PlayVFX.Fire) or nil
     
     -- Variabel global untuk status VFX
     local isVFXDisabled = false
@@ -2678,6 +2716,11 @@ do
         Icon = "slash",
         Callback = function(state)
             isVFXDisabled = state
+
+            if not VFXControllerModule then
+                WindUI:Notify({ Title = "Error", Content = "VFXController tidak ditemukan di game ini.", Duration = 4, Icon = "x" })
+                return
+            end
     
             if state then
                 -- 1. Blokir fungsi Handle (dipanggil oleh Handle Remote dan PlayVFX Signal)
