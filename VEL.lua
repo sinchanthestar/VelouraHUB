@@ -305,7 +305,7 @@ do
     local RF_ChargeFishingRod    = GetRemote("RF/ChargeFishingRod")
     local RF_RequestFishingMinigameStarted = GetRemote("RF/RequestFishingMinigameStarted")
     -- [UPDATE] Remote completion terbaru
-    local RE_FishingCompleted    = GetRemote("RF/CatchFishCompleted")
+    local RF_CatchFishCompleted  = GetRemote("RF/CatchFishCompleted")
     local RF_CancelFishingInputs = GetRemote("RF/CancelFishingInputs")
     local RF_UpdateAutoFishingState = GetRemote("RF/UpdateAutoFishingState")
 
@@ -472,7 +472,7 @@ do
         CallRemote(RF_ChargeFishingRod, 1, 0.999)
         CallRemote(RF_RequestFishingMinigameStarted, 1, 0.999)
         task.wait(tonumber(minigameDelay) or 1)
-        CallRemote(RE_FishingCompleted)
+        CallRemote(RF_CatchFishCompleted)
         task.wait(0.3)
         CallRemote(RF_CancelFishingInputs)
     end
@@ -488,7 +488,7 @@ do
             task.wait(0.016)
             CallRemote(RF_RequestFishingMinigameStarted, 1, 0.99)
             task.wait(tonumber(minigameDelay) or 0.97)
-            CallRemote(RE_FishingCompleted)
+            CallRemote(RF_CatchFishCompleted)
         end)
     end
     
@@ -506,7 +506,7 @@ do
         end)
         task.spawn(function()
             task.wait(tonumber(minigameDelay) or 0.5)
-            CallRemote(RE_FishingCompleted)
+            CallRemote(RF_CatchFishCompleted)
         end)
     end
     
@@ -873,19 +873,25 @@ do
     --[[ LOGIKA UTAMA - BLATANT V2 ]]
     local function blatantFishv2()
         pcall(function()
-            RF_Charge:InvokeServer(1)
+            if RF_Charge then RF_Charge:InvokeServer(1, 0.999) end
         end)
 
         task.wait(tonumber(cycleDelay) or 3.5)
 
         pcall(function()
-            RF_StartGame:InvokeServer()
+            if RF_StartGame then RF_StartGame:InvokeServer(1, 0.999) end
         end)
 
         task.wait(tonumber(minigameDelay) or 0.5)
 
         pcall(function()
-            RF_Complete:InvokeServer()
+            if RF_Complete then
+                if typeof(RF_Complete.InvokeServer) == "function" then
+                    RF_Complete:InvokeServer()
+                elseif typeof(RF_Complete.FireServer) == "function" then
+                    RF_Complete:FireServer()
+                end
+            end
         end)
     end
 
