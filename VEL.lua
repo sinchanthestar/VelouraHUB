@@ -41,16 +41,6 @@ local RepStorage = game:GetService("ReplicatedStorage")
 local ItemUtility = require(RepStorage:WaitForChild("Shared"):WaitForChild("ItemUtility", 10))
 local TierUtility = require(RepStorage:WaitForChild("Shared"):WaitForChild("TierUtility", 10))
 
---[[ SETUP REMOTE SESUAI GAMBAR ]]
-
-
-local RF_Charge = NetPath["RF/ChargeFishingRod"]
-local RF_StartGame = NetPath["RF/RequestFishingMinigameStarted"]
-local RF_Complete = NetPath["RF/CatchFishCompleted"]
-
-
-
-
 local pos_saved = nil
 local look_saved = nil
 
@@ -815,83 +805,90 @@ do
         end
     }))
    
-   --[[ LOGIKA UTAMA ]]
-local function blatantFishv2()
-    -- 1. Charge Fishing Rod (Melempar kail)
-    -- Biasanya butuh argumen power (1 = 100%), sesuaikan jika game butuh Vector3
-    pcall(function() 
-        RF_Charge:InvokeServer(1) 
-    end)
-    
-    -- Tunggu waktu umpan dimakan (Bait Delay dari UI)
-    task.wait(cycleDelay) 
-
-    -- 2. Request Fishing Minigame Started (Mulai Minigame)
-    pcall(function() 
-        RF_StartGame:InvokeServer() 
-    end)
-
-    -- Tunggu durasi minigame pura-pura (Complete Delay dari UI)
-    task.wait(minigameDelay)
-
-    -- 3. Catch Fish Completed (Selesaikan Minigame/Dapat Ikan)
-    pcall(function() 
-        RF_Complete:InvokeServer() 
-    end)
-end 
     BlatantV1:Divider()
     
     -- ===== BLATANT V2 FISHING SECTION =====
-local BlatantV2 = FishingTab:Section({
-    Title = "Blatant V2 Fishing",
-    TextSize = 18,
-    FontWeight = Enum.FontWeight.SemiBold,
-})
-
-local BlatantV2Bait = Reg("blatV2bait", BlatantV2:Input({
-    Title = "Bait Delay (Wait for Bite)",
-    Value = "3.5", -- Diperbesar sedikit agar wajar
-    Type = "Input",
-    Placeholder = "example : 3.5",
-    Callback = function(s)
-        cycleDelay = tonumber(s) or 3.5
-    end
-}))
-
-local BlatantV2Delay = Reg("blatV2delay", BlatantV2:Input({
-    Title = "Minigame Delay (Reeling)",
-    Value = "0.5",
-    Type = "Input",
-    Placeholder = "example : 0.5",
-    Callback = function(s)
-        minigameDelay = tonumber(s) or 0.5
-    end
-}))
-
-local BlatantV2Toggle = Reg("togblatv2", BlatantV2:Toggle({
-    Title = "BlatantV2 Fish",
-    Value = false,
-    Callback = function(state)
-        blatantV2State = state
-        -- Opsional: Update state ke server jika game memutuhkannya
-        -- pcall(function() RF_UpdateAutoFishingState:InvokeServer(state) end)
-        
-        if state then
-            blatantFishv2LoopThread = task.spawn(function()
-                while blatantV2State do
-                    blatantFishv2()
-                    -- Jeda kecil sebelum mengulang cycle agar tidak crash/spam berlebihan
-                    task.wait(0.2) 
-                end
+    local BlatantV2 = FishingTab:Section({
+        Title = "Blatant V2 Fishing",
+        TextSize = 18,
+        FontWeight = Enum.FontWeight.SemiBold,
+    })
+    
+    -- Definisi remote untuk Blatant V2
+    local RF_Charge = GetRemote("RF/ChargeFishingRod")
+    local RF_StartGame = GetRemote("RF/RequestFishingMinigameStarted")
+    local RF_Complete = GetRemote("RF/CatchFishCompleted")
+    
+    local function blatantFishv2()
+        -- 1. Charge Fishing Rod (Melempar kail)
+        if RF_Charge then
+            pcall(function() 
+                RF_Charge:InvokeServer(1) 
             end)
-        else
-            if blatantFishv2LoopThread then 
-                task.cancel(blatantFishv2LoopThread) 
-                blatantFishv2LoopThread = nil 
-            end
+        end
+        
+        -- Tunggu waktu umpan dimakan (Bait Delay dari UI)
+        task.wait(cycleDelay) 
+
+        -- 2. Request Fishing Minigame Started (Mulai Minigame)
+        if RF_StartGame then
+            pcall(function() 
+                RF_StartGame:InvokeServer() 
+            end)
+        end
+
+        -- Tunggu durasi minigame pura-pura (Complete Delay dari UI)
+        task.wait(minigameDelay)
+
+        -- 3. Catch Fish Completed (Selesaikan Minigame/Dapat Ikan)
+        if RF_Complete then
+            pcall(function() 
+                RF_Complete:InvokeServer() 
+            end)
         end
     end
-}))
+    
+    local BlatantV2Bait = Reg("blatV2bait", BlatantV2:Input({
+        Title = "Bait Delay (Wait for Bite)",
+        Value = "3.5",
+        Type = "Input",
+        Placeholder = "example : 3.5",
+        Callback = function(s)
+            cycleDelay = tonumber(s) or 3.5
+        end
+    }))
+
+    local BlatantV2Delay = Reg("blatV2delay", BlatantV2:Input({
+        Title = "Minigame Delay (Reeling)",
+        Value = "0.5",
+        Type = "Input",
+        Placeholder = "example : 0.5",
+        Callback = function(s)
+            minigameDelay = tonumber(s) or 0.5
+        end
+    }))
+
+    local BlatantV2Toggle = Reg("togblatv2", BlatantV2:Toggle({
+        Title = "BlatantV2 Fish",
+        Value = false,
+        Callback = function(state)
+            blatantV2State = state
+            
+            if state then
+                blatantFishv2LoopThread = task.spawn(function()
+                    while blatantV2State do
+                        blatantFishv2()
+                        task.wait(0.5)
+                    end
+                end)
+            else
+                if blatantFishv2LoopThread then 
+                    task.cancel(blatantFishv2LoopThread) 
+                    blatantFishv2LoopThread = nil 
+                end
+            end
+        end
+    }))
 
     
     local autoFavoriteState = false
@@ -936,9 +933,6 @@ local BlatantV2Toggle = Reg("togblatv2", BlatantV2:Toggle({
     end
         
     local allItemNames = getAutoFavoriteItemOptions()
-        
-        -- FUNGSI HELPER: Mendapatkan semua item yang memenuhi kriteria (DIFORWARD KE FAVORITE)
-        -- GANTI FUNGSI LAMA 'GetItemsToFavorite' DENGAN YANG INI:
     
     BlatantV2:Divider()
     
