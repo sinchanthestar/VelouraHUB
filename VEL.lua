@@ -36,7 +36,7 @@ showDebugBanner("FishIt: script running...")
 
 local Library
 local ok, libOrErr = pcall(function()
-    return loadstring(readfile("Library.lua"))()
+    return loadstring(game:HttpGet("https://raw.githubusercontent.com/sinchanthestar/VelouraHUB/refs/heads/main/Library.lua"))()
 end)
 if not ok then
     warn("Library load failed:", libOrErr)
