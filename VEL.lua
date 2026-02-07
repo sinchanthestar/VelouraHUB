@@ -1,6 +1,48 @@
 -- edited by @example
-local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
-local Window = WindUI:CreateWindow({
+local function _httpGet(url)
+    local ok, res = pcall(game.HttpGet, game, url)
+    if ok then return res end
+    return nil
+end
+
+local function _tryLoad(url)
+    local src = _httpGet(url)
+    if type(src) ~= "string" then return nil end
+    if type(loadstring) ~= "function" then return nil end
+    local fn = loadstring(src)
+    if type(fn) ~= "function" then return nil end
+    local ok, lib = pcall(fn)
+    if ok then return lib end
+    return nil
+end
+
+local WindUI = nil
+do
+    local urls = {
+        "https://github.com/Footagesus/WindUI/releases/latest/download/main.lua",
+        -- Fallback (kalau GitHub release sedang down/blocked)
+        "https://raw.githubusercontent.com/Footagesus/WindUI/main/main.lua",
+        "https://raw.githubusercontent.com/Footagesus/WindUI/refs/heads/main/main.lua",
+    }
+    for _, url in ipairs(urls) do
+        for _ = 1, 3 do
+            WindUI = _tryLoad(url)
+            if WindUI then break end
+            task.wait(0.25)
+        end
+        if WindUI then break end
+    end
+end
+
+if not WindUI then
+    warn("[AutoFish] WindUI gagal dimuat (HttpGet/loadstring). Menu tidak bisa muncul.")
+    return
+end
+
+local Window
+do
+    local ok, w = pcall(function()
+        return WindUI:CreateWindow({
     Title = "Mr.A_S - Fish It",
     Icon = "rbxassetid://116236936447443",
     Author = "Premium Version",
@@ -15,22 +57,73 @@ local Window = WindUI:CreateWindow({
     BackgroundImageTransparency = 0.42,
     HideSearchBar = true,
     ScrollBarEnabled = true,
-})
+        })
+    end)
+    if ok then Window = w end
+end
+
+if not Window then
+    warn("[AutoFish] CreateWindow gagal. Kemungkinan API WindUI berubah / executor bermasalah.")
+    return
+end
+
+local function CreateTabSafe(opts)
+    local ok, tab = pcall(function()
+        return Window:Tab(opts)
+    end)
+    if ok and tab then return tab end
+
+    -- fallback untuk variasi API lain (jaga-jaga)
+    ok, tab = pcall(function()
+        if typeof(Window.AddTab) == "function" then
+            return Window:AddTab({ Name = opts.Title, Icon = opts.Icon })
+        end
+    end)
+    if ok and tab then return tab end
+
+    ok, tab = pcall(function()
+        if typeof(Window.CreateTab) == "function" then
+            return Window:CreateTab(opts.Title)
+        end
+    end)
+    if ok and tab then return tab end
+
+    return nil
+end
 
 -- =============================================================
 -- MAIN SIDEBAR LAYOUT (sesuai request user)
 -- Main | Trade | Teleport | Shop | Config | Misc
 -- =============================================================
-local tabMain = Window:Tab({ Title = "Main", Icon = "home", Locked = false })
-local tabTrade = Window:Tab({ Title = "Trade", Icon = "repeat", Locked = false })
-local tabTeleport = Window:Tab({ Title = "Teleport", Icon = "map-pin", Locked = false })
-local tabShop = Window:Tab({ Title = "Shop", Icon = "shopping-cart", Locked = false })
-local tabConfig = Window:Tab({ Title = "Config", Icon = "settings", Locked = false })
-local tabMisc = Window:Tab({ Title = "Misc", Icon = "more-horizontal", Locked = false })
+local tabMain = CreateTabSafe({ Title = "Main", Icon = "home", Locked = false })
+local tabTrade = CreateTabSafe({ Title = "Trade", Icon = "repeat", Locked = false })
+local tabTeleport = CreateTabSafe({ Title = "Teleport", Icon = "map-pin", Locked = false })
+local tabShop = CreateTabSafe({ Title = "Shop", Icon = "shopping-cart", Locked = false })
+local tabConfig = CreateTabSafe({ Title = "Config", Icon = "settings", Locked = false })
+local tabMisc = CreateTabSafe({ Title = "Misc", Icon = "more-horizontal", Locked = false })
+
+if not (tabMain and tabTrade and tabTeleport and tabShop and tabConfig and tabMisc) then
+    warn("[AutoFish] Gagal membuat tab UI. Kemungkinan API WindUI berubah.")
+    return
+end
 
 local SelectedConfigName = "AutoFish" -- Default
 -- [[ 1. CONFIGURATION SYSTEM SETUP ]] --
-local RockHubConfig = Window.ConfigManager:CreateConfig(SelectedConfigName)
+local RockHubConfig = nil
+pcall(function()
+    if Window.ConfigManager and typeof(Window.ConfigManager.CreateConfig) == "function" then
+        RockHubConfig = Window.ConfigManager:CreateConfig(SelectedConfigName)
+    end
+end)
+
+-- Fallback supaya script tetap jalan meski ConfigManager tidak tersedia
+if not RockHubConfig then
+    RockHubConfig = {
+        Register = function() end,
+        Save = function() return false end,
+        Load = function() return false end,
+    }
+end
 
 -- [BARU] Tabel untuk menyimpan semua elemen UI agar bisa dicek valuenya
 local ElementRegistry = {} 
@@ -305,7 +398,7 @@ do
     local RF_ChargeFishingRod    = GetRemote("RF/ChargeFishingRod")
     local RF_RequestFishingMinigameStarted = GetRemote("RF/RequestFishingMinigameStarted")
     -- [UPDATE] Remote completion terbaru
-    local RF_CatchFishCompleted  = GetRemote("RF/CatchFishCompleted")
+    local RE_FishingCompleted    = GetRemote("RF/CatchFishCompleted")
     local RF_CancelFishingInputs = GetRemote("RF/CancelFishingInputs")
     local RF_UpdateAutoFishingState = GetRemote("RF/UpdateAutoFishingState")
 
@@ -472,7 +565,7 @@ do
         CallRemote(RF_ChargeFishingRod, 1, 0.999)
         CallRemote(RF_RequestFishingMinigameStarted, 1, 0.999)
         task.wait(tonumber(minigameDelay) or 1)
-        CallRemote(RF_CatchFishCompleted)
+        CallRemote(RE_FishingCompleted)
         task.wait(0.3)
         CallRemote(RF_CancelFishingInputs)
     end
@@ -488,7 +581,7 @@ do
             task.wait(0.016)
             CallRemote(RF_RequestFishingMinigameStarted, 1, 0.99)
             task.wait(tonumber(minigameDelay) or 0.97)
-            CallRemote(RF_CatchFishCompleted)
+            CallRemote(RE_FishingCompleted)
         end)
     end
     
@@ -506,7 +599,7 @@ do
         end)
         task.spawn(function()
             task.wait(tonumber(minigameDelay) or 0.5)
-            CallRemote(RF_CatchFishCompleted)
+            CallRemote(RE_FishingCompleted)
         end)
     end
     
@@ -873,25 +966,19 @@ do
     --[[ LOGIKA UTAMA - BLATANT V2 ]]
     local function blatantFishv2()
         pcall(function()
-            if RF_Charge then RF_Charge:InvokeServer(1, 0.999) end
+            RF_Charge:InvokeServer(1)
         end)
 
         task.wait(tonumber(cycleDelay) or 3.5)
 
         pcall(function()
-            if RF_StartGame then RF_StartGame:InvokeServer(1, 0.999) end
+            RF_StartGame:InvokeServer()
         end)
 
         task.wait(tonumber(minigameDelay) or 0.5)
 
         pcall(function()
-            if RF_Complete then
-                if typeof(RF_Complete.InvokeServer) == "function" then
-                    RF_Complete:InvokeServer()
-                elseif typeof(RF_Complete.FireServer) == "function" then
-                    RF_Complete:FireServer()
-                end
-            end
+            RF_Complete:InvokeServer()
         end)
     end
 
