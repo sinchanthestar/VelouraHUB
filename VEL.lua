@@ -43,10 +43,11 @@ local TierUtility = require(RepStorage:WaitForChild("Shared"):WaitForChild("Tier
 
 --[[ SETUP REMOTE SESUAI GAMBAR ]]
 
-
-local RF_Charge = NetPath["RF/ChargeFishingRod"]
-local RF_StartGame = NetPath["RF/RequestFishingMinigameStarted"]
-local RF_Complete = NetPath["RF/CatchFishCompleted"]
+-- NetPath tidak selalu tersedia di semua executor/script.
+-- Remote akan di-resolve via GetRemote() setelah helper siap.
+local RF_Charge = nil
+local RF_StartGame = nil
+local RF_Complete = nil
 
 
 
@@ -69,6 +70,11 @@ local function GetRemote(name, timeout)
     end
     return currentInstance:FindFirstChild(name)
 end
+
+-- Resolve remotes untuk Blatant V2 (dipakai di tab Fishing)
+RF_Charge = RF_Charge or GetRemote("RF/ChargeFishingRod", 5)
+RF_StartGame = RF_StartGame or GetRemote("RF/RequestFishingMinigameStarted", 5)
+RF_Complete = RF_Complete or GetRemote("RF/CatchFishCompleted", 5)
 
 local function GetHumanoid()
     local Character = LocalPlayer.Character
@@ -413,7 +419,7 @@ do
         originalAnimator = nil -- Bersihkan referensi lama
     end
     
-    local function OnCharacterAdded(newCharacter)
+    function OnCharacterAdded(newCharacter)
         if isNoAnimationActive then
             task.wait(0.2) -- Tunggu sebentar agar LoadCharacter selesai
             DisableAnimations()
@@ -3408,5 +3414,7 @@ panelNetwork:Toggle({
 
 -- Auto Reload Icon saat Respawn
 game.Players.LocalPlayer.CharacterAdded:Connect(function(char)
-    OnCharacterAdded(char)
+    if typeof(OnCharacterAdded) == "function" then
+        OnCharacterAdded(char)
+    end
 end)
