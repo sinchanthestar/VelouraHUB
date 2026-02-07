@@ -1,7 +1,51 @@
-print("Library exists:", isfile and isfile("Library.lua"))
-local Library = loadstring(readfile("Library.lua"))()
-print("Library loaded:", Library ~= nil)
+local function ensureGuiParent(gui)
+    if syn and syn.protect_gui then
+        syn.protect_gui(gui)
+        gui.Parent = game.CoreGui
+    elseif gethui then
+        gui.Parent = gethui()
+    else
+        gui.Parent = game.CoreGui
+    end
+end
+
+local function showDebugBanner(text)
+    local existing = game.CoreGui:FindFirstChild("FishIt_Debug")
+    if existing then
+        existing:Destroy()
+    end
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "FishIt_Debug"
+    gui.ResetOnSpawn = false
+    gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    ensureGuiParent(gui)
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0, 360, 0, 40)
+    label.Position = UDim2.new(0, 20, 0, 20)
+    label.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    label.TextColor3 = Color3.fromRGB(255, 200, 120)
+    label.BorderSizePixel = 0
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 14
+    label.Text = text
+    label.Parent = gui
+end
+
+showDebugBanner("FishIt: script running...")
+
+local Library
+local ok, libOrErr = pcall(function()
+    return loadstring(readfile("Library.lua"))()
+end)
+if not ok then
+    warn("Library load failed:", libOrErr)
+    showDebugBanner("FishIt: Library load failed")
+    return
+end
+Library = libOrErr
 if not Library then
+    showDebugBanner("FishIt: Library returned nil")
     return
 end
 
